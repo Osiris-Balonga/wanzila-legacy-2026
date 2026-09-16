@@ -1,6 +1,7 @@
 import {
   adminDutyListQuerySchema,
   adminDutyPathParamsSchema,
+  adminDutySummaryQuerySchema,
   createAdminDutyRequestSchema,
   updateAdminDutyRequestSchema,
   type AdminDuty,
@@ -28,6 +29,12 @@ const dutySelect = {
   updatedAt: true,
 } satisfies Prisma.DutyPeriodSelect;
 type DutyRecord = Prisma.DutyPeriodGetPayload<{ select: typeof dutySelect }>;
+const RECENT_DUTY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Prisma `contains` uses SQL LIKE. Escape pattern controls so q remains literal.
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
 
 function serialize(duty: DutyRecord): AdminDuty {
   return {
@@ -58,6 +65,19 @@ export function registerAdminDutyPeriodRoutes(
         ...(query.data.pharmacyId ? { pharmacyId: query.data.pharmacyId } : {}),
         ...(query.data.sourceId ? { sourceId: query.data.sourceId } : {}),
         ...(query.data.status ? { status: query.data.status } : {}),
+        ...(query.data.q
+          ? {
+              pharmacy: {
+                is: {
+                  OR: [
+                    { name: { contains: escapeLike(query.data.q) } },
+                    { district: { contains: escapeLike(query.data.q) } },
+                    { arrondissement: { contains: escapeLike(query.data.q) } },
+                  ],
+                },
+              },
+            }
+          : {}),
         ...(query.data.from
           ? { endsAt: { gt: new Date(query.data.from) } }
           : {}),
@@ -76,6 +96,61 @@ export function registerAdminDutyPeriodRoutes(
       return {
         data: records.map(serialize),
         pagination: pagination(query.data.page, query.data.pageSize, total),
+      };
+    },
+  );
+
+  app.get(
+    "/admin/duties/summary",
+    { preHandler: requireAdministrator },
+    async (request, reply) => {
+      if (!adminDutySummaryQuerySchema.safeParse(request.query).success)
+        return sendBadRequest(reply);
+
+      const now = options.now();
+      const windowStart = new Date(now.getTime() - RECENT_DUTY_WINDOW_MS);
+      const [active, upcoming, expired, withoutRecentDuty] =
+        await options.prisma.$transaction(
+          [
+            options.prisma.dutyPeriod.count({
+              where: {
+                status: "APPROVED",
+                startsAt: { lte: now },
+                endsAt: { gt: now },
+                exceptions: {
+                  none: { startsAt: { lte: now }, endsAt: { gt: now } },
+                },
+              },
+            }),
+            options.prisma.dutyPeriod.count({
+              where: { status: "APPROVED", startsAt: { gt: now } },
+            }),
+            options.prisma.dutyPeriod.count({
+              where: { status: "APPROVED", endsAt: { lte: now } },
+            }),
+            options.prisma.pharmacy.count({
+              where: {
+                status: "PUBLISHED",
+                duties: {
+                  none: {
+                    status: "APPROVED",
+                    startsAt: { lte: now },
+                    endsAt: { gt: windowStart },
+                  },
+                },
+              },
+            }),
+          ],
+          { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+        );
+      return {
+        data: {
+          asOf: now.toISOString(),
+          active,
+          upcoming,
+          expired,
+          withoutRecentDuty,
+        },
       };
     },
   );
