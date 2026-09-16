@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DiscoveryRoute } from "@/features/discovery/DiscoveryPage";
 import { EmergencyContactsRoute } from "../features/emergency-contacts/EmergencyContactsRoute";
+import { PharmacyDetailRoute } from "../features/pharmacy-detail/PharmacyDetailPage";
 
 type PublicShellProps = { pathname: string };
 const navigation: Array<{ href: string; icon: IconName; label: string }> = [
@@ -16,12 +17,15 @@ const isCurrentRoute = (href: string, pathname: string) =>
   href === "/" ? pathname === "/" : pathname.startsWith(href);
 
 export function PublicShell({ pathname }: PublicShellProps) {
+  const pharmacyDetailId = /^\/pharmacies\/([^/]+)\/?$/.exec(pathname)?.[1];
   return (
     <div
       className={
         pathname === "/"
           ? "public-shell public-shell--discovery"
-          : "public-shell"
+          : pharmacyDetailId
+            ? "public-shell public-shell--pharmacy-detail"
+            : "public-shell"
       }
       data-shell="public"
     >
@@ -42,6 +46,8 @@ export function PublicShell({ pathname }: PublicShellProps) {
       </header>
       {pathname === "/" ? (
         <DiscoveryRoute />
+      ) : pharmacyDetailId ? (
+        <PharmacyDetailRoute id={pharmacyDetailId} />
       ) : (
         <main
           className={`public-main${
