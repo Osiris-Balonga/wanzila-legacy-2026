@@ -155,6 +155,10 @@ test("the mobile map presents reference regions and synchronizes marker/list sel
     "href",
     "tel:+242060001234",
   );
+  await expect(page.getByRole("link", { name: "Itinéraire" })).toHaveAttribute(
+    "href",
+    "/pharmacies/00000000-0000-4000-8000-000000000101/itineraire",
+  );
   await page.getByRole("button", { name: "Liste" }).click();
   await expect(page).toHaveURL(/\/#list$/);
   await expect(

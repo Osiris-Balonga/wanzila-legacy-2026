@@ -83,7 +83,10 @@ test("detail-to-call is explicit, keyboard reachable and tracked", async ({
     "href",
     `tel:${pharmacy.phone}`,
   );
-  await expect(page.getByRole("button", { name: "Itinéraire" })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "Itinéraire" })).toHaveAttribute(
+    "href",
+    `/pharmacies/${id}/itineraire`,
+  );
   await expect(
     page.getByRole("button", { name: "Enregistrer" }),
   ).toBeDisabled();
@@ -111,6 +114,7 @@ test("detail-to-call is explicit, keyboard reachable and tracked", async ({
     page.getByRole("link", { name: "Ouvertes maintenant" }),
     page.getByRole("link", { name: "Quartier : Poto-Poto" }),
     page.getByRole("link", { name: "Arrondissement : Poto-Poto" }),
+    page.getByRole("link", { name: "Itinéraire" }),
     page.getByRole("link", { name: "Appeler" }),
   ]) {
     await page.keyboard.press("Tab");

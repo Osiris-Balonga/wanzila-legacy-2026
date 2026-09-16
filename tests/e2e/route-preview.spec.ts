@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { resolve } from "node:path";
 
 const id = "00000000-0000-4000-8000-000000000007";
 const pharmacy = {
@@ -27,21 +28,23 @@ test.use({
 });
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/maps/wanzila-style.json", (route) =>
-    route.fulfill({
-      json: {
-        version: 8,
-        sources: {},
-        layers: [
-          {
-            id: "background",
-            type: "background",
-            paint: { "background-color": "#f4f5ff" },
-          },
-        ],
-      },
-    }),
-  );
+  if (process.env.WANZILA_ROUTE_LIVE_MAP !== "1") {
+    await page.route("**/maps/wanzila-style.json", (route) =>
+      route.fulfill({
+        json: {
+          version: 8,
+          sources: {},
+          layers: [
+            {
+              id: "background",
+              type: "background",
+              paint: { "background-color": "#f4f5ff" },
+            },
+          ],
+        },
+      }),
+    );
+  }
   await page.route(`**/api/v1/pharmacies/${id}`, (route) =>
     route.fulfill({ json: { data: pharmacy } }),
   );
@@ -56,10 +59,14 @@ test("detail hand-off and fixture preview retain truthful labels and destination
   await expect(
     page.getByRole("heading", { name: pharmacy.name }),
   ).toBeVisible();
-  await expect(page.getByText(/tracé de démonstration/i)).toBeVisible();
-  await expect(page.getByText("7 min")).toBeVisible();
-  await expect(page.getByText("2,4 km")).toBeVisible();
-  await expect(page.getByText(/Avenue des Trois Martyrs/)).toBeVisible();
+  await expect(
+    page.getByText(/tracé de démonstration · ni trafic/i),
+  ).toBeVisible();
+  await expect(page.getByText("7 min", { exact: true })).toBeVisible();
+  await expect(page.getByText("(2,4 km)", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".route-preview-stops").getByText(/Avenue des Trois Martyrs/),
+  ).toBeVisible();
   const external = page.getByRole("link", {
     name: /ouvrir l’itinéraire dans google maps/i,
   });
@@ -120,7 +127,9 @@ test("location is requested only on click; denial and retry preserve destination
       ).__geoWitness.outcome = "success"),
   );
   await page.getByRole("button", { name: "Réessayer la position" }).click();
-  await expect(page.getByText(/position obtenue/i)).toBeVisible();
+  await expect(
+    page.getByText(/position obtenue pour cette session/i),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -129,7 +138,9 @@ test("location is requested only on click; denial and retry preserve destination
     ),
   ).toBe(2);
   await page.getByRole("button", { name: "Effacer ma position" }).click();
-  await expect(page.getByText(/position obtenue/i)).toHaveCount(0);
+  await expect(
+    page.getByText(/position obtenue pour cette session/i),
+  ).toHaveCount(0);
 });
 
 test("missing or invalid coordinates never create external navigation", async ({
@@ -143,16 +154,161 @@ test("missing or invalid coordinates never create external navigation", async ({
     }),
   );
   await page.goto(`/pharmacies/${id}/itineraire`);
-  await expect(page.getByText(/coordonnées.*indisponibles/i)).toBeVisible();
+  await expect(
+    page.getByText(/Coordonnées de destination indisponibles\. Consultez/i),
+  ).toBeVisible();
   await expect(
     page.getByRole("link", { name: /ouvrir l’itinéraire dans google maps/i }),
   ).toHaveCount(0);
+});
+
+test("unsupported, unavailable and timeout states keep a usable fallback", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const witness = { code: 2 };
+    (window as typeof window & { __geoError: typeof witness }).__geoError =
+      witness;
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition(
+          _success: PositionCallback,
+          error: PositionErrorCallback,
+        ) {
+          error({ code: witness.code } as GeolocationPositionError);
+        },
+      },
+    });
+  });
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page.getByRole("button", { name: "Utiliser ma position" }).click();
+  await expect(page.getByText(/position indisponible/i)).toBeVisible();
+  await page.evaluate(
+    () =>
+      ((
+        window as typeof window & { __geoError: { code: number } }
+      ).__geoError.code = 3),
+  );
+  await page.getByRole("button", { name: "Réessayer la position" }).click();
+  await expect(page.getByText(/recherche de position a expiré/i)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /ouvrir l’itinéraire dans google maps/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Copier l’adresse" }),
+  ).toBeEnabled();
+});
+
+test("cancelling a pending location request ignores a late callback", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const witness: { calls: number; success?: PositionCallback } = { calls: 0 };
+    (window as typeof window & { __geoPending: typeof witness }).__geoPending =
+      witness;
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition(success: PositionCallback) {
+          witness.calls += 1;
+          witness.success = success;
+        },
+      },
+    });
+  });
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page.getByRole("button", { name: "Utiliser ma position" }).click();
+  await expect(page.getByText(/recherche de votre position/i)).toBeVisible();
+  await page.getByRole("button", { name: "Annuler la localisation" }).click();
+  await page.evaluate(() =>
+    (
+      window as typeof window & { __geoPending: { success?: PositionCallback } }
+    ).__geoPending.success?.({
+      coords: { latitude: -4.277, longitude: 15.25 },
+    } as GeolocationPosition),
+  );
+  await expect(
+    page.getByText(/position obtenue pour cette session/i),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as typeof window & { __geoPending: { calls: number } })
+          .__geoPending.calls,
+    ),
+  ).toBe(1);
+});
+
+test("unsupported geolocation does not block external directions", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page.getByRole("button", { name: "Utiliser ma position" }).click();
+  await expect(
+    page.getByText(/ne prend pas en charge la géolocalisation/i),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /ouvrir l’itinéraire dans google maps/i }),
+  ).toBeVisible();
+});
+
+test("other pharmacies never inherit Jagger's illustrative route", async ({
+  page,
+}) => {
+  await page.route(`**/api/v1/pharmacies/${id}`, (route) =>
+    route.fulfill({
+      json: { data: { ...pharmacy, name: "Pharmacie de quartier" } },
+    }),
+  );
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await expect(page.getByText(/aucun trajet calculé/i)).toBeVisible();
+  await expect(page.getByText("7 min", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: /ouvrir l’itinéraire dans google maps/i }),
+  ).toBeVisible();
+});
+
+test("map failure leaves destination, address, call and external hand-off", async ({
+  page,
+}) => {
+  await page.route("**/maps/wanzila-style.json", (route) =>
+    route.fulfill({ status: 503, body: "Unavailable" }),
+  );
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await expect(page.getByText(/fond de carte indisponible/i)).toBeVisible();
+  await expect(
+    page.locator(".route-preview-stops").getByText(/Avenue des Trois Martyrs/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Copier l’adresse" }),
+  ).toBeEnabled();
+  await expect(page.getByRole("link", { name: "Appeler" })).toHaveAttribute(
+    "href",
+    "tel:+242067324518",
+  );
+  await expect(
+    page.getByRole("link", { name: /ouvrir l’itinéraire dans google maps/i }),
+  ).toBeVisible();
 });
 
 test("route preview is keyboard-accessible and responsive", async ({
   page,
 }, testInfo) => {
   await page.goto(`/pharmacies/${id}/itineraire`);
+  if (process.env.WANZILA_ROUTE_LIVE_MAP === "1") {
+    await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+      "data-map-status",
+      "ready",
+      { timeout: 30000 },
+    );
+  }
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(
@@ -163,7 +319,12 @@ test("route preview is keyboard-accessible and responsive", async ({
       .evaluate((element) => element.scrollWidth - element.clientWidth);
     expect(overflow, `horizontal overflow at ${width}px`).toBe(0);
     await page.screenshot({
-      path: testInfo.outputPath(`route-preview-${width}.png`),
+      path: process.env.WANZILA_ROUTE_CAPTURE_DIR
+        ? resolve(
+            process.env.WANZILA_ROUTE_CAPTURE_DIR,
+            `route-preview-${width}.png`,
+          )
+        : testInfo.outputPath(`route-preview-${width}.png`),
       fullPage: true,
       animations: "disabled",
     });

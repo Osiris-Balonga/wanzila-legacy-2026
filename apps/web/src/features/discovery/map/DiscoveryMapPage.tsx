@@ -250,8 +250,10 @@ export function DiscoveryMapPage({
                 <Phone aria-hidden="true" /> Appeler
               </Button>
             )}
-            <Button disabled title="Itinéraire bientôt disponible">
-              <Navigation aria-hidden="true" /> Itinéraire
+            <Button asChild>
+              <a href={`/pharmacies/${selected.id}/itineraire`}>
+                <Navigation aria-hidden="true" /> Itinéraire
+              </a>
             </Button>
             <Button
               disabled

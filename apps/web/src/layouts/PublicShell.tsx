@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DiscoveryRoute } from "@/features/discovery/DiscoveryPage";
 import { EmergencyContactsRoute } from "../features/emergency-contacts/EmergencyContactsRoute";
 import { PharmacyDetailRoute } from "../features/pharmacy-detail/PharmacyDetailPage";
+import { RoutePreviewRoute } from "../features/navigation/RoutePreviewPage";
 
 type PublicShellProps = { pathname: string };
 const navigation: Array<{ href: string; icon: IconName; label: string }> = [
@@ -18,14 +19,19 @@ const isCurrentRoute = (href: string, pathname: string) =>
 
 export function PublicShell({ pathname }: PublicShellProps) {
   const pharmacyDetailId = /^\/pharmacies\/([^/]+)\/?$/.exec(pathname)?.[1];
+  const routePreviewId = /^\/pharmacies\/([^/]+)\/itineraire\/?$/.exec(
+    pathname,
+  )?.[1];
   return (
     <div
       className={
-        pathname === "/"
-          ? "public-shell public-shell--discovery"
-          : pharmacyDetailId
-            ? "public-shell public-shell--pharmacy-detail"
-            : "public-shell"
+        routePreviewId
+          ? "public-shell public-shell--route-preview"
+          : pathname === "/"
+            ? "public-shell public-shell--discovery"
+            : pharmacyDetailId
+              ? "public-shell public-shell--pharmacy-detail"
+              : "public-shell"
       }
       data-shell="public"
     >
@@ -46,6 +52,8 @@ export function PublicShell({ pathname }: PublicShellProps) {
       </header>
       {pathname === "/" ? (
         <DiscoveryRoute />
+      ) : routePreviewId ? (
+        <RoutePreviewRoute id={routePreviewId} />
       ) : pharmacyDetailId ? (
         <PharmacyDetailRoute id={pharmacyDetailId} />
       ) : (
