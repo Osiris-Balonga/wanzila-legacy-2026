@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Download, Plus } from "lucide-react";
 import {
   adminPharmacyListResponseSchema,
   adminPharmacyResponseSchema,
@@ -579,55 +580,35 @@ function PharmacyDirectoryList() {
     };
   }, [query, refresh]);
   return (
-    <section>
+    <section className="admin-pharmacy-directory">
       <div className="page-heading">
         <div>
-          <p className="overline">Annuaire</p>
           <h1>Pharmacies</h1>
-          <p>Gérez les informations et la publication de l’annuaire.</p>
+          <p>
+            Gérez la liste des pharmacies de Brazzaville, leurs informations et
+            leur statut.
+          </p>
         </div>
-        <Button asChild>
-          <a href="/admin/pharmacies/nouvelle">Ajouter une pharmacie</a>
+        <Button
+          disabled
+          variant="outline"
+          title="Filtre de période indisponible"
+        >
+          <CalendarDays aria-hidden="true" /> Période indisponible
         </Button>
       </div>
       <div className="pharmacy-directory-toolbar">
         <div className="pharmacy-filters">
-          <label>
-            Filtrer par nom
+          <label className="pharmacy-filters__search">
+            <span className="sr-only">Rechercher une pharmacie</span>
             <Input
+              type="search"
+              placeholder="Rechercher une pharmacie, un quartier, un téléphone..."
               value={filters.name}
               onChange={(event) =>
                 setFilters((old) => ({
                   ...old,
                   name: event.target.value,
-                  page: 1,
-                }))
-              }
-            />
-          </label>
-          <label>
-            District
-            <Input
-              placeholder="Tous les districts"
-              value={filters.district}
-              onChange={(event) =>
-                setFilters((old) => ({
-                  ...old,
-                  district: event.target.value,
-                  page: 1,
-                }))
-              }
-            />
-          </label>
-          <label>
-            Arrondissement
-            <Input
-              placeholder="Tous les arrondissements"
-              value={filters.arrondissement}
-              onChange={(event) =>
-                setFilters((old) => ({
-                  ...old,
-                  arrondissement: event.target.value,
                   page: 1,
                 }))
               }
@@ -652,27 +633,61 @@ function PharmacyDirectoryList() {
             </select>
           </label>
           <label>
-            Résultats par page
-            <select
-              value={filters.pageSize}
+            Arrondissement
+            <Input
+              list="admin-arrondissements"
+              placeholder="Tous les arrondissements"
+              value={filters.arrondissement}
               onChange={(event) =>
                 setFilters((old) => ({
                   ...old,
-                  pageSize: Number(event.target.value),
+                  arrondissement: event.target.value,
                   page: 1,
                 }))
               }
-            >
-              <option value="20">20</option>
-              <option value="50">50</option>
+            />
+            <datalist id="admin-arrondissements">
+              <option value="Bacongo" />
+              <option value="Moungali" />
+              <option value="Poto-Poto" />
+            </datalist>
+          </label>
+          <label>
+            Source
+            <select disabled title="Filtre source indisponible">
+              <option>Sources indisponibles</option>
             </select>
           </label>
-        </div>
-        <div className="detail-actions">
-          <Button onClick={() => setAppliedFilters(filters)}>
-            Appliquer les filtres
+          <Button
+            className="pharmacy-filters__apply"
+            onClick={() => setAppliedFilters(filters)}
+            variant="outline"
+          >
+            Appliquer
+          </Button>
+          <Button asChild className="pharmacy-filters__add">
+            <a href="/admin/pharmacies/nouvelle">
+              <Plus aria-hidden="true" /> Ajouter une pharmacie
+            </a>
           </Button>
         </div>
+        <details className="pharmacy-directory-toolbar__advanced">
+          <summary>Filtres avancés</summary>
+          <label>
+            District
+            <Input
+              placeholder="Tous les districts"
+              value={filters.district}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  district: event.target.value,
+                  page: 1,
+                }))
+              }
+            />
+          </label>
+        </details>
       </div>
       {loading ? (
         <p aria-label="Chargement des pharmacies" role="status">
@@ -696,7 +711,34 @@ function PharmacyDirectoryList() {
           <p>Aucune pharmacie à afficher</p>
         ))}
       {!loading && !error && (
-        <div className="detail-actions">
+        <div className="pharmacy-directory-pagination">
+          <span>
+            Affichage de{" "}
+            {data.length
+              ? (appliedFilters.page - 1) * appliedFilters.pageSize + 1
+              : 0}{" "}
+            à {Math.min(appliedFilters.page * appliedFilters.pageSize, total)}{" "}
+            sur {total} pharmacies
+          </span>
+          <label className="pharmacy-directory-pagination__size">
+            Résultats par page
+            <select
+              value={filters.pageSize}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  pageSize: Number(event.target.value),
+                  page: 1,
+                }))
+              }
+            >
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+          <Button disabled variant="outline" title="Export indisponible">
+            <Download aria-hidden="true" /> Exporter
+          </Button>
           <Button
             variant="outline"
             disabled={appliedFilters.page <= 1}
