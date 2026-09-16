@@ -4,14 +4,14 @@ This evidence covers `/admin/gardes` and `/admin/gardes/nouvelle` only. It does 
 
 ## Reference image and implementation capture
 
-| Reference at the manifest's 1586 × 992 crop | Implementation at 1586 px |
-| --- | --- |
-| ![Duty list reference](../../mockups/admin-duty-periods.png) | ![Duty list implementation](list-1586.png) |
+| Reference at the manifest's 1586 × 992 crop                     | Implementation at 1586 px                        |
+| --------------------------------------------------------------- | ------------------------------------------------ |
+| ![Duty list reference](../../mockups/admin-duty-periods.png)    | ![Duty list implementation](list-1586.png)       |
 | ![Duty creation reference](../../mockups/admin-duty-create.png) | ![Duty creation implementation](create-1586.png) |
 
-| 390 px mobile adaptation | 1440 px desktop adaptation |
-| --- | --- |
-| ![Duty list at 390 px](list-390.png) | ![Duty list at 1440 px](list-1440.png) |
+| 390 px mobile adaptation                   | 1440 px desktop adaptation                   |
+| ------------------------------------------ | -------------------------------------------- |
+| ![Duty list at 390 px](list-390.png)       | ![Duty list at 1440 px](list-1440.png)       |
 | ![Duty creation at 390 px](create-390.png) | ![Duty creation at 1440 px](create-1440.png) |
 
 ## Annotated differences
