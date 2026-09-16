@@ -1,0 +1,363 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { analyticsOverviewFixture } from "../../apps/web/src/features/admin-dashboard/testing/analytics-fixtures";
+
+test.use({
+  locale: "fr-FR",
+  timezoneId: "Africa/Brazzaville",
+  reducedMotion: "reduce",
+});
+
+test.beforeEach(async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "one stable Chromium profile");
+  await page.clock.setFixedTime(new Date("2026-09-16T12:00:00.000Z"));
+  await page.route("**/maps/wanzila-style.json", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "ground",
+            type: "background",
+            paint: { "background-color": "#edf0f8" },
+          },
+        ],
+      },
+    }),
+  );
+});
+
+async function mockOverview(
+  page: Page,
+  options: { empty?: boolean; status?: number; hold?: Promise<void> } = {},
+) {
+  const requested: string[] = [];
+  await page.route("**/api/v1/admin/analytics/overview**", async (route) => {
+    const url = new URL(route.request().url());
+    requested.push(`${url.pathname}${url.search}`);
+    await options.hold;
+    const window = url.searchParams.get("window") === "30d" ? "30d" : "7d";
+    await route.fulfill({
+      status: options.status ?? 200,
+      json:
+        options.status && options.status !== 200
+          ? { error: { code: "INTERNAL_ERROR", message: "Test failure" } }
+          : analyticsOverviewFixture(window, options.empty),
+    });
+  });
+  return requested;
+}
+
+function rgbChannels(value: string): [number, number, number] {
+  const channels = value
+    .match(/[\d.]+/g)
+    ?.slice(0, 3)
+    .map(Number);
+  if (!channels || channels.length !== 3 || channels.some(Number.isNaN))
+    throw new Error(`Expected a computed RGB color, received ${value}`);
+  return channels as [number, number, number];
+}
+
+function luminance([red, green, blue]: [number, number, number]): number {
+  const linear = [red, green, blue].map((channel) => {
+    const scaled = channel / 255;
+    return scaled <= 0.04045
+      ? scaled / 12.92
+      : ((scaled + 0.055) / 1.055) ** 2.4;
+  });
+  return linear[0]! * 0.2126 + linear[1]! * 0.7152 + linear[2]! * 0.0722;
+}
+
+async function expectPurpleWhiteAction(button: Locator): Promise<void> {
+  const colors = await button.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      foreground: style.color,
+      background: style.backgroundColor,
+      opacity: Number(style.opacity),
+    };
+  });
+  const foreground = rgbChannels(colors.foreground);
+  const background = rgbChannels(colors.background);
+  expect(Math.min(...foreground)).toBeGreaterThanOrEqual(245);
+  expect(background[2]).toBeGreaterThan(background[0]);
+  expect(background[0]).toBeGreaterThan(background[1]);
+  const compositeOnWhite = (channels: [number, number, number]) =>
+    channels.map(
+      (value) => value * colors.opacity + 255 * (1 - colors.opacity),
+    ) as [number, number, number];
+  const ratio =
+    (luminance(compositeOnWhite(foreground)) + 0.05) /
+    (luminance(compositeOnWhite(background)) + 0.05);
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+}
+
+test("dashboard and quality routes issue real 7d overview requests and show their required regions", async ({
+  page,
+}) => {
+  const requests = await mockOverview(page);
+
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  for (const region of [
+    "Indicateurs d’activité",
+    "Tunnel d’activité",
+    "Pharmacies les plus consultées",
+    "Utilisation des filtres",
+    "Carte d’activité",
+    "Alertes et actions à traiter",
+    "Qualité des données",
+  ]) {
+    await expect(page.getByRole("region", { name: region })).toBeVisible();
+  }
+  await expect(
+    page
+      .getByRole("region", { name: "Pharmacies les plus consultées" })
+      .getByText("Pharmacie des Manguiers"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("table", { name: /Tunnel d’activité/ }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("table", { name: /Activité quotidienne/ }),
+  ).toHaveCount(1);
+  expect(requests).toContain("/api/v1/admin/analytics/overview?window=7d");
+
+  await page.goto("/admin/qualite");
+  await expect(
+    page.getByRole("heading", { name: "Sources & qualité des données" }),
+  ).toBeVisible();
+  for (const region of [
+    "Indicateurs de qualité",
+    "Sources de planning",
+    "Couverture des gardes",
+    "Qualité des données",
+    "Anomalies à traiter",
+  ]) {
+    await expect(page.getByRole("region", { name: region })).toBeVisible();
+  }
+  await expect(
+    page.getByText(/Détail des sources indisponible/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Détail des anomalies indisponible/i),
+  ).toBeVisible();
+  expect(
+    requests.filter(
+      (url) => url === "/api/v1/admin/analytics/overview?window=7d",
+    ),
+  ).toHaveLength(2);
+});
+
+test("the dashboard actually fetches the reviewed overview endpoint", async ({
+  page,
+}) => {
+  const requests = await mockOverview(page);
+  await page.goto("/admin");
+  await expect
+    .poll(() => requests, { timeout: 2000 })
+    .toContain("/api/v1/admin/analytics/overview?window=7d");
+});
+
+test("period control is keyboard-focusable and changes the actual query to 30d", async ({
+  page,
+}) => {
+  const requests = await mockOverview(page);
+  await page.goto("/admin");
+  const period = page.getByRole("combobox", { name: "Période" });
+  await expect(period).toBeVisible();
+  await period.focus();
+  await expect(period).toBeFocused();
+  await period.selectOption("30d");
+  await expect
+    .poll(() => requests.at(-1))
+    .toBe("/api/v1/admin/analytics/overview?window=30d");
+  await expect(page.getByText(/30 derniers jours/i)).toBeVisible();
+  await expect(
+    page.getByRole("table", { name: /Activité quotidienne/ }),
+  ).toContainText(/18 août|2026-08-18/i);
+  await expect(
+    page.getByRole("region", { name: "Indicateurs d’activité" }),
+  ).toContainText(
+    String(analyticsOverviewFixture("30d").data.events.totals.discovery_viewed),
+  );
+
+  await page.goto("/admin/qualite");
+  const qualityPeriod = page.getByRole("combobox", { name: "Période" });
+  await expect(qualityPeriod).toBeVisible();
+  expect(requests.at(-1)).toBe("/api/v1/admin/analytics/overview?window=7d");
+  await qualityPeriod.selectOption("30d");
+  await expect
+    .poll(() => requests.at(-1))
+    .toBe("/api/v1/admin/analytics/overview?window=30d");
+});
+
+for (const route of ["/admin", "/admin/qualite"] as const) {
+  test(`${route} exposes loading, zero-data and retryable API failure`, async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await mockOverview(page, { hold, empty: true });
+    await page.goto(route);
+    await expect(
+      page.getByRole("status", { name: /Chargement/ }),
+    ).toBeVisible();
+    release();
+    await expect(
+      page.getByText(/Aucune activité|Aucune donnée/i),
+    ).toBeVisible();
+    await expect(page.getByText("87%", { exact: true })).toHaveCount(0);
+
+    await page.unrouteAll();
+    await mockOverview(page, { status: 500 });
+    await page.reload();
+    await expect(page.getByRole("alert")).toContainText(/indisponible/i);
+    const retry = page.getByRole("button", { name: "Réessayer" });
+    await expect(retry).toBeVisible();
+    await expectPurpleWhiteAction(retry);
+    await retry.hover();
+    await expectPurpleWhiteAction(retry);
+    await retry.focus();
+    await expect(retry).toBeFocused();
+    await expectPurpleWhiteAction(retry);
+    const bounds = await retry.boundingBox();
+    expect(bounds).not.toBeNull();
+    await page.mouse.move(
+      bounds!.x + bounds!.width / 2,
+      bounds!.y + bounds!.height / 2,
+    );
+    await page.mouse.down();
+    await expectPurpleWhiteAction(retry);
+    await page.mouse.up();
+  });
+}
+
+test("retry stays readable while disabled during a pending refetch", async ({
+  page,
+}) => {
+  let release!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requests = 0;
+  await page.route("**/api/v1/admin/analytics/overview**", async (route) => {
+    requests += 1;
+    if (requests === 1) {
+      await route.fulfill({
+        status: 500,
+        json: { error: { code: "INTERNAL_ERROR", message: "Test failure" } },
+      });
+      return;
+    }
+    await hold;
+    await route.fulfill({ json: analyticsOverviewFixture() });
+  });
+  await page.goto("/admin");
+  const retry = page.getByRole("button", { name: "Réessayer" });
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(retry).toBeDisabled();
+  await expectPurpleWhiteAction(retry);
+  release();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+});
+
+test("reference-selected navigation icons are solid rather than outline-only", async ({
+  page,
+}) => {
+  await mockOverview(page);
+  await page.goto("/admin");
+  const nav = page.getByRole("navigation", {
+    name: "Navigation administration",
+  });
+  await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(
+    nav.getByRole("link", { name: "Dashboard" }).locator("svg"),
+  ).toHaveAttribute("fill", "currentColor");
+
+  await page.goto("/admin/qualite");
+  await expect(
+    nav.getByRole("link", { name: "Sources & qualité" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    nav.getByRole("link", { name: "Sources & qualité" }).locator("svg"),
+  ).toHaveAttribute("fill", "currentColor");
+});
+
+test("map uses only real top-pharmacy coordinates, not a synthetic heat layer", async ({
+  page,
+}) => {
+  await mockOverview(page);
+  await page.goto("/admin");
+  const map = page.getByRole("region", { name: "Carte d’activité" });
+  await expect(map).toContainText("Pharmacie des Manguiers");
+  await expect(
+    map.getByRole("button", { name: /Pharmacie des Manguiers/ }),
+  ).toBeVisible();
+  await expect(map).toContainText(
+    /activité cartographique partielle|activité cartographique limitée/i,
+  );
+  await expect(map).not.toContainText(/position utilisateur|carte de chaleur/i);
+  await expect(map.getByText("Pharmacie indisponible")).toHaveCount(0);
+});
+
+for (const width of [320, 390, 768, 1440]) {
+  for (const route of ["/admin", "/admin/qualite"] as const) {
+    test(`${route} preserves reference hierarchy, focus and no overflow at ${width}px`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: width < 500 ? 844 : 1024 });
+      await mockOverview(page);
+      await page.goto(route);
+      await expect(
+        page.getByRole("heading", {
+          name:
+            route === "/admin" ? "Dashboard" : "Sources & qualité des données",
+        }),
+      ).toBeVisible();
+      const period = page.getByRole("combobox", { name: "Période" });
+      await period.focus();
+      await expect(period).toBeFocused();
+      const dimensions = await page.locator("html").evaluate((element) => ({
+        client: element.clientWidth,
+        scroll: element.scrollWidth,
+      }));
+      expect(dimensions.scroll).toBe(dimensions.client);
+
+      if (width === 1440) {
+        const metrics = await page
+          .getByRole("region", {
+            name:
+              route === "/admin"
+                ? "Indicateurs d’activité"
+                : "Indicateurs de qualité",
+          })
+          .boundingBox();
+        const detail = await page
+          .getByRole("region", {
+            name:
+              route === "/admin" ? "Tunnel d’activité" : "Sources de planning",
+          })
+          .boundingBox();
+        expect(metrics).not.toBeNull();
+        expect(detail).not.toBeNull();
+        expect(detail!.y).toBeGreaterThan(metrics!.y);
+      }
+
+      const path = testInfo.outputPath(
+        `${route === "/admin" ? "admin-dashboard" : "admin-data-quality"}-${width}.png`,
+      );
+      await page.screenshot({ path, fullPage: true, animations: "disabled" });
+      await testInfo.attach(`analytics-${route}-${width}`, {
+        path,
+        contentType: "image/png",
+      });
+    });
+  }
+}
