@@ -95,11 +95,12 @@ test("detail has identity, real-contract status, information and location region
   await expect(page.getByText("Active", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Contribution citoyenne")).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "Statistiques rapides" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: /Historique/ })).toHaveCount(
-    0,
-  );
+    page.getByRole("region", { name: "Historique et dernières activités" }),
+  ).toContainText("Historique indisponible");
+  await expect(
+    page.getByRole("region", { name: "Statistiques rapides" }),
+  ).toContainText("Statistiques indisponibles");
+  await expect(page.getByText("482", { exact: true })).toHaveCount(0);
 });
 
 test("detail retains edit, publish and archive interactions", async ({
@@ -201,12 +202,19 @@ for (const width of [320, 390, 768, 1440, 1586]) {
     await expect(
       page.getByRole("region", { name: "Localisation", exact: true }),
     ).toBeVisible();
-    if (!process.env.WANZILA_LIVE_MAP) {
-      await expect(page.locator(".admin-detail__map")).toHaveAttribute(
-        "data-map-status",
-        "ready",
-      );
+    if (width === 390 || width === 1440) {
+      await expect(
+        page.getByRole("region", { name: "Historique et dernières activités" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("region", { name: "Statistiques rapides" }),
+      ).toBeVisible();
     }
+    await expect(page.locator(".admin-detail__map")).toHaveAttribute(
+      "data-map-status",
+      "ready",
+      { timeout: process.env.WANZILA_LIVE_MAP ? 30000 : 5000 },
+    );
     const widths = await page.locator("html").evaluate((element) => ({
       client: element.clientWidth,
       scroll: element.scrollWidth,

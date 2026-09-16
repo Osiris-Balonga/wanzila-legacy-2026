@@ -94,6 +94,13 @@
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.95fr);
 }
 
+.admin-detail__lower-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.95fr);
+  margin-top: 1rem;
+}
+
 .admin-detail__panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -407,6 +414,56 @@
   width: 0.9rem;
 }
 
+.admin-detail__unavailable-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 12.5rem;
+}
+
+.admin-detail__unavailable-panel h2 {
+  font-size: 0.95rem;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.admin-detail__unavailable {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: 0.9rem;
+  padding: 1rem 0.35rem;
+}
+
+.admin-detail__unavailable-icon {
+  align-items: center;
+  background: var(--primary-soft);
+  border-radius: 0.6rem;
+  color: var(--primary);
+  display: flex;
+  flex: none;
+  height: 2.75rem;
+  justify-content: center;
+  width: 2.75rem;
+}
+
+.admin-detail__unavailable-icon svg {
+  height: 1.2rem;
+  width: 1.2rem;
+}
+
+.admin-detail__unavailable strong {
+  font-size: 0.86rem;
+}
+
+.admin-detail__unavailable p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0.3rem 0 0;
+  max-width: 34rem;
+  text-wrap: pretty;
+}
+
 .admin-detail__data-note {
   color: var(--muted);
   font-size: 0.78rem;
@@ -440,7 +497,8 @@
 }
 
 @media (max-width: 74rem) {
-  .admin-detail__columns {
+  .admin-detail__columns,
+  .admin-detail__lower-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

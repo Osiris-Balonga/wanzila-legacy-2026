@@ -7,6 +7,8 @@ import {
   Archive,
   Building2,
   CalendarDays,
+  ChartNoAxesCombined,
+  History,
   MapPin,
   Pencil,
   Phone,
@@ -362,9 +364,47 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
           </div>
         </section>
       </div>
+      <div className="admin-detail__lower-grid">
+        <section
+          aria-labelledby="admin-detail-history"
+          className="admin-detail__panel admin-detail__unavailable-panel"
+        >
+          <h2 id="admin-detail-history">Historique et dernières activités</h2>
+          <div className="admin-detail__unavailable">
+            <span aria-hidden="true" className="admin-detail__unavailable-icon">
+              <History />
+            </span>
+            <div>
+              <strong>Historique indisponible</strong>
+              <p>
+                Les événements de cette pharmacie ne sont pas fournis par l’API
+                actuelle.
+              </p>
+            </div>
+          </div>
+        </section>
+        <section
+          aria-labelledby="admin-detail-statistics"
+          className="admin-detail__panel admin-detail__unavailable-panel"
+        >
+          <h2 id="admin-detail-statistics">Statistiques rapides</h2>
+          <div className="admin-detail__unavailable">
+            <span aria-hidden="true" className="admin-detail__unavailable-icon">
+              <ChartNoAxesCombined />
+            </span>
+            <div>
+              <strong>Statistiques indisponibles</strong>
+              <p>
+                Les chiffres d’appels, de gardes, de recherches et de notes ne
+                sont pas fournis par l’API actuelle.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
       <p className="admin-detail__data-note">
-        Source, vérification, activité et statistiques non disponibles dans la
-        fiche actuelle. Aucune donnée n’est déduite du statut de publication.
+        Source et vérification non disponibles dans la fiche actuelle. Aucune
+        disponibilité n’est déduite du statut de publication.
       </p>
     </article>
   );
