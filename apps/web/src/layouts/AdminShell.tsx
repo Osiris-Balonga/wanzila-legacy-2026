@@ -10,6 +10,7 @@ import {
   AdminPharmacyDirectory,
 } from "../features/admin-pharmacy/AdminPharmacyDirectory";
 import { AdminAnalyticsRoute } from "../features/admin-dashboard/AdminAnalyticsRoute";
+import { AdminDutyPage } from "../features/admin-duty/AdminDutyPage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,6 +96,8 @@ export function AdminShell({ pathname }: AdminShellProps) {
   }
 
   const isPharmacyRoute = pathname.startsWith("/admin/pharmacies");
+  const isDutyRoute =
+    pathname === "/admin/gardes" || pathname === "/admin/gardes/nouvelle";
   const signOut = async () => {
     await fetch("/api/v1/admin/auth/sign-out", {
       method: "POST",
@@ -220,6 +223,8 @@ export function AdminShell({ pathname }: AdminShellProps) {
           <AdminAnalyticsRoute
             view={pathname === "/admin" ? "dashboard" : "quality"}
           />
+        ) : isDutyRoute ? (
+          <AdminDutyPage pathname={pathname} />
         ) : (
           <>
             <div className="page-heading">
