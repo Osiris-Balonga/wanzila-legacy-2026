@@ -19,6 +19,7 @@ import { registerPublicPharmacyRoutes } from "./modules/public-api/routes.js";
 import { registerAdministratorAuthRoutes } from "./modules/admin-auth/routes.js";
 import { registerAdminPharmacyRoutes } from "./modules/admin-pharmacy/routes.js";
 import { registerAdminDutyRoutes } from "./modules/admin-duty/routes.js";
+import { registerAdminAnalyticsRoutes } from "./modules/admin-analytics/routes.js";
 import type { AdministratorAuthRouteOptions } from "./modules/admin-auth/routes.js";
 import {
   internalError,
@@ -137,6 +138,11 @@ export async function createApp(options: AppOptions) {
           prisma,
           now,
           webOrigin: options.webOrigin,
+          sourceFreshnessMaxAgeMs,
+        });
+        registerAdminAnalyticsRoutes(adminApi, {
+          prisma,
+          now,
           sourceFreshnessMaxAgeMs,
         });
       },
