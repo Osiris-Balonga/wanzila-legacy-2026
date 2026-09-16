@@ -1,0 +1,331 @@
+{
+  "version": 1,
+  "referenceRoot": "docs/design/mockups",
+  "mobileSource": {
+    "width": 941,
+    "height": 1672,
+    "webComparisonCrop": { "x": 75, "y": 126, "width": 791, "height": 1518 },
+    "note": "The phone frame, operating-system status bar and outer lavender background are illustrative, not web UI. Compare the inner content and bottom navigation; do not scale the whole phone screenshot to a CSS viewport."
+  },
+  "adminSource": {
+    "width": 1586,
+    "height": 992,
+    "webComparisonCrop": { "x": 0, "y": 0, "width": 1586, "height": 992 }
+  },
+  "screens": [
+    {
+      "file": "mobile-map.png",
+      "route": "/",
+      "routeStatus": "implemented-without-reference-regions",
+      "ownerIssue": 22,
+      "fixture": "public-active",
+      "requiredRegions": [
+        "interactive map",
+        "search",
+        "open-now and location filters",
+        "pharmacy markers",
+        "location and layers controls",
+        "map/list switch",
+        "bottom navigation"
+      ],
+      "states": [
+        "loading",
+        "results",
+        "empty",
+        "provider failure",
+        "missing coordinates"
+      ],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-map-selected.png",
+      "route": "/",
+      "routeStatus": "implemented-without-reference-regions",
+      "ownerIssue": 22,
+      "fixture": "public-selected",
+      "requiredRegions": [
+        "interactive map",
+        "selected marker",
+        "selected pharmacy card",
+        "map/list switch",
+        "bottom navigation"
+      ],
+      "states": ["selected", "selection cleared", "provider failure"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-pharmacy-detail.png",
+      "route": "/pharmacies/:id",
+      "routeStatus": "proposed",
+      "ownerIssue": 7,
+      "fixture": "public-detail",
+      "requiredRegions": [
+        "pharmacy identity",
+        "duty and source confidence",
+        "contact and route actions",
+        "location",
+        "opening information",
+        "bottom navigation"
+      ],
+      "states": ["active", "uncertain source", "not found", "loading"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-route-preview.png",
+      "route": "/pharmacies/:id/itineraire",
+      "routeStatus": "proposed",
+      "ownerIssue": 8,
+      "fixture": "route-preview",
+      "requiredRegions": [
+        "route map",
+        "origin and destination",
+        "travel mode",
+        "route summary",
+        "start action"
+      ],
+      "states": [
+        "route available",
+        "routing unavailable",
+        "geolocation denied"
+      ],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-navigation.png",
+      "route": "/pharmacies/:id/navigation",
+      "routeStatus": "proposed",
+      "ownerIssue": 23,
+      "fixture": "navigation-active",
+      "requiredRegions": [
+        "route map",
+        "next instruction",
+        "progress and destination",
+        "stop action"
+      ],
+      "states": ["navigating", "off route", "location unavailable", "arrived"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-saved.png",
+      "route": "/enregistrees",
+      "routeStatus": "proposed",
+      "ownerIssue": 40,
+      "fixture": "public-saved",
+      "requiredRegions": [
+        "saved pharmacy list",
+        "pharmacy identity and duty",
+        "remove action",
+        "bottom navigation"
+      ],
+      "states": ["saved", "empty", "stale duty information"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-contribution-location.png",
+      "route": "/contribuer",
+      "routeStatus": "placeholder",
+      "ownerIssue": 41,
+      "fixture": "contribution-location",
+      "requiredRegions": [
+        "location map",
+        "chosen location",
+        "location controls",
+        "continue action"
+      ],
+      "states": ["location chosen", "permission denied", "map unavailable"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "mobile-contribution-form.png",
+      "route": "/contribuer/details",
+      "routeStatus": "proposed",
+      "ownerIssue": 41,
+      "fixture": "contribution-form",
+      "requiredRegions": [
+        "location context",
+        "pharmacy form",
+        "validation feedback",
+        "submission action",
+        "review notice"
+      ],
+      "states": ["editing", "invalid", "submitting", "submitted", "offline"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-dashboard.png",
+      "sourceSize": { "width": 1536, "height": 1024 },
+      "webComparisonCrop": { "x": 0, "y": 0, "width": 1536, "height": 1024 },
+      "route": "/admin",
+      "routeStatus": "placeholder",
+      "ownerIssue": 25,
+      "fixture": "admin-dashboard",
+      "requiredRegions": [
+        "admin shell",
+        "summary metrics",
+        "charts",
+        "recent activity",
+        "period control"
+      ],
+      "states": ["populated", "empty", "loading", "error"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-pharmacies.png",
+      "route": "/admin/pharmacies",
+      "routeStatus": "implemented-without-reference-regions",
+      "ownerIssue": 39,
+      "fixture": "admin-pharmacies",
+      "requiredRegions": [
+        "admin shell",
+        "title and period",
+        "search and filters",
+        "pharmacy table",
+        "source and verification",
+        "status",
+        "row actions",
+        "pagination"
+      ],
+      "states": ["populated", "empty", "loading", "error", "narrow viewport"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-pharmacy-detail.png",
+      "route": "/admin/pharmacies/:id",
+      "routeStatus": "implemented-without-reference-regions",
+      "ownerIssue": 39,
+      "fixture": "admin-pharmacy-detail",
+      "requiredRegions": [
+        "admin shell",
+        "pharmacy identity and status",
+        "information",
+        "location",
+        "actions",
+        "activity and statistics when supported"
+      ],
+      "states": ["populated", "loading", "not found", "error"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-duty-periods.png",
+      "route": "/admin/gardes",
+      "routeStatus": "placeholder",
+      "ownerIssue": 24,
+      "fixture": "admin-duty-periods",
+      "requiredRegions": [
+        "admin shell",
+        "duty summary",
+        "period filters",
+        "duty table",
+        "create action"
+      ],
+      "states": ["populated", "empty", "loading", "error"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-duty-create.png",
+      "route": "/admin/gardes/nouvelle",
+      "routeStatus": "proposed",
+      "ownerIssue": 24,
+      "fixture": "admin-duty-create",
+      "requiredRegions": [
+        "admin shell",
+        "pharmacy selection",
+        "period fields",
+        "source",
+        "validation",
+        "save action"
+      ],
+      "states": ["editing", "invalid", "saving", "conflict"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-duty-edit.png",
+      "route": "/admin/gardes/:id/modifier",
+      "routeStatus": "proposed",
+      "ownerIssue": 24,
+      "fixture": "admin-duty-edit",
+      "requiredRegions": [
+        "admin shell",
+        "existing period",
+        "editable fields",
+        "source",
+        "validation",
+        "save action"
+      ],
+      "states": ["editing", "invalid", "saving", "conflict"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-contributions.png",
+      "route": "/admin/contributions",
+      "routeStatus": "placeholder",
+      "ownerIssue": 42,
+      "fixture": "admin-contributions",
+      "requiredRegions": [
+        "admin shell",
+        "review queue",
+        "filters",
+        "contribution rows",
+        "review actions"
+      ],
+      "states": ["pending", "empty", "loading", "error"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-contribution-review.png",
+      "route": "/admin/contributions/:id",
+      "routeStatus": "proposed",
+      "ownerIssue": 42,
+      "fixture": "admin-contribution-review",
+      "requiredRegions": [
+        "admin shell",
+        "submitted information",
+        "location",
+        "source and evidence",
+        "approve or reject actions"
+      ],
+      "states": ["pending", "approved", "rejected", "error"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-reports.png",
+      "route": "/admin/signalements",
+      "routeStatus": "placeholder",
+      "ownerIssue": 43,
+      "fixture": "admin-reports",
+      "requiredRegions": [
+        "admin shell",
+        "report queue",
+        "filters",
+        "report rows",
+        "resolution actions"
+      ],
+      "states": ["open", "resolved", "empty", "error"],
+      "approvedDeviations": []
+    },
+    {
+      "file": "admin-data-quality.png",
+      "route": "/admin/qualite",
+      "routeStatus": "placeholder",
+      "ownerIssue": 25,
+      "fixture": "admin-data-quality",
+      "requiredRegions": [
+        "admin shell",
+        "quality metrics",
+        "charts",
+        "source health",
+        "priority actions"
+      ],
+      "states": ["populated", "empty", "loading", "error"],
+      "approvedDeviations": []
+    }
+  ],
+  "assets": [
+    {
+      "file": "brand-app-icon.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "usage": "Brand asset, not an application screen"
+    }
+  ]
+}
