@@ -429,6 +429,10 @@ p {
   min-height: 2.75rem;
 }
 
+.admin-sign-out__icon {
+  display: none;
+}
+
 .notification-indicator {
   align-items: center;
   color: var(--primary);
@@ -644,8 +648,30 @@ p {
   }
 
   .admin-header {
+    gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     position: relative;
+  }
+
+  .admin-header > .brand--small span,
+  .admin-sign-out > span {
+    display: none;
+  }
+
+  .admin-sign-out {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0;
+  }
+
+  .admin-sign-out__icon {
+    display: block;
+    height: 1.125rem;
+    width: 1.125rem;
+  }
+
+  .admin-header__tools {
+    gap: var(--space-1);
   }
 
   .brand--small,

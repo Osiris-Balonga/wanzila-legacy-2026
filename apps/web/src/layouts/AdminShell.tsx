@@ -1,4 +1,5 @@
 import { useRef, useState, type RefObject } from "react";
+import { LogOut } from "lucide-react";
 import { Icon, type IconName } from "../components/Icon";
 import { EmptyState } from "../components/EmptyState";
 import {
@@ -154,8 +155,14 @@ export function AdminShell({ pathname }: AdminShellProps) {
           </SheetContent>
         </Sheet>
         <div className="admin-header__tools">
-          <Button variant="ghost" onClick={() => void signOut()}>
-            Se déconnecter
+          <Button
+            aria-label="Se déconnecter"
+            className="admin-sign-out"
+            variant="ghost"
+            onClick={() => void signOut()}
+          >
+            <LogOut aria-hidden="true" className="admin-sign-out__icon" />
+            <span>Se déconnecter</span>
           </Button>
           <Label className="sr-only" htmlFor="admin-search">
             Recherche
