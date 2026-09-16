@@ -3,6 +3,12 @@ import { MoreHorizontal, Phone, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -106,21 +112,30 @@ export function AdminPharmacyList({
                 </TableCell>
                 <TableCell>
                   <span className="pharmacy-directory-list__actions">
-                    <a
-                      className="pharmacy-directory-list__action"
-                      href={`/admin/pharmacies/${item.id}`}
-                    >
-                      Voir <span className="sr-only">{item.name}</span>
-                    </a>
-                    <Button
-                      aria-label="Autres actions"
-                      disabled
-                      size="icon"
-                      title="Autres actions indisponibles"
-                      variant="outline"
-                    >
-                      <MoreHorizontal aria-hidden="true" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          aria-label={`Actions pour ${item.name}`}
+                          size="icon"
+                          variant="outline"
+                        >
+                          <MoreHorizontal aria-hidden="true" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <a href={`/admin/pharmacies/${item.id}`}>
+                            Voir <span className="sr-only">{item.name}</span>
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <a href={`/admin/pharmacies/${item.id}/modifier`}>
+                            Modifier{" "}
+                            <span className="sr-only">{item.name}</span>
+                          </a>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </span>
                 </TableCell>
               </TableRow>

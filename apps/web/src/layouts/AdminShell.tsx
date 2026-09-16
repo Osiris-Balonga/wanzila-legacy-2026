@@ -1,5 +1,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { LogOut } from "lucide-react";
+import { FirstAidKitIcon } from "@phosphor-icons/react/FirstAidKit";
+import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { Icon, type IconName } from "../components/Icon";
 import { EmptyState } from "../components/EmptyState";
 import {
@@ -63,7 +65,13 @@ function Navigation({
           key={item.href}
           ref={index === 0 ? firstLinkRef : undefined}
         >
-          <Icon name={item.icon} />
+          {item.icon === "dashboard" ? (
+            <SquaresFourIcon aria-hidden="true" weight="fill" />
+          ) : item.icon === "pharmacy" ? (
+            <FirstAidKitIcon aria-hidden="true" weight="fill" />
+          ) : (
+            <Icon name={item.icon} />
+          )}
           <span>{item.label}</span>
         </a>
       ))}

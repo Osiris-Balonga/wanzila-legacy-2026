@@ -115,10 +115,6 @@ summary {
   -webkit-tap-highlight-color: transparent;
 }
 
-a {
-  color: inherit;
-}
-
 h1,
 h2,
 p {
@@ -794,25 +790,6 @@ p {
   display: block;
   font-size: 0.8125rem;
   margin-top: 0.15rem;
-}
-
-.pharmacy-directory-list__action {
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.2rem;
-  min-width: 2.5rem;
-  padding: 0 0.65rem;
-  text-decoration: none;
-}
-
-.pharmacy-directory-list__action:hover,
-.pharmacy-directory-list__action:focus-visible {
-  background: var(--primary-soft);
-  color: var(--primary);
 }
 
 .pharmacy-status--published {

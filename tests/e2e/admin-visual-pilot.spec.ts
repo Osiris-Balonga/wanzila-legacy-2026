@@ -60,6 +60,9 @@ test("desktop directory preserves the reference's major regions without invented
   await expect(
     navigation.getByRole("link", { name: "Pharmacies" }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(
+    navigation.getByRole("link", { name: "Pharmacies" }).locator("svg"),
+  ).toHaveCSS("fill", "rgb(98, 39, 245)");
   await expect(page.getByRole("heading", { name: "Pharmacies" })).toBeVisible();
   await expect(
     page.getByRole("searchbox", { name: "Rechercher une pharmacie" }),
@@ -78,12 +81,34 @@ test("desktop directory preserves the reference's major regions without invented
   await expect(
     page.getByRole("cell", { name: "Non renseignée" }).first(),
   ).toBeVisible();
+  const firstRow = page.getByRole("row", { name: /Pharmacie Jagger/ });
+  await expect(firstRow.getByRole("link", { name: /Voir/ })).toHaveCount(0);
+  const actions = firstRow.getByRole("button", {
+    name: "Actions pour Pharmacie Jagger",
+  });
+  await actions.click();
   await expect(
-    page.getByRole("link", { name: /Voir Pharmacie Jagger/ }),
-  ).toBeVisible();
+    page.getByRole("menuitem", { name: "Voir Pharmacie Jagger" }),
+  ).toHaveAttribute("href", `/admin/pharmacies/${pharmacies[0].id}`);
   await expect(
-    page.getByRole("button", { name: "Autres actions" }).first(),
-  ).toBeDisabled();
+    page.getByRole("menuitem", { name: "Modifier Pharmacie Jagger" }),
+  ).toHaveAttribute("href", `/admin/pharmacies/${pharmacies[0].id}/modifier`);
+  const menuScreenshot = testInfo.outputPath("admin-actions-menu.png");
+  await page.screenshot({ path: menuScreenshot });
+  await testInfo.attach("admin-actions-menu", {
+    path: menuScreenshot,
+    contentType: "image/png",
+  });
+  await page.keyboard.press("Escape");
+  await actions.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("menuitem", { name: "Voir Pharmacie Jagger" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  const primary = page.getByRole("link", { name: "Ajouter une pharmacie" });
+  await expect(primary).toHaveCSS("color", "rgb(255, 255, 255)");
+  await page.getByRole("heading", { name: "Pharmacies" }).click();
   await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 1440);
   const screenshot = testInfo.outputPath("admin-directory-1440.png");
   await page.screenshot({ path: screenshot, fullPage: true });
