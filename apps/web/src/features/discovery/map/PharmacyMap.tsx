@@ -7,7 +7,7 @@ import { toPharmacyFeatures } from "./pharmacy-map-features";
 
 type MapStatus = "loading" | "ready" | "error";
 
-const initialCenter: [longitude: number, latitude: number] = [15.255, -4.282];
+const initialCenter: [longitude: number, latitude: number] = [15.255, -4.275];
 const configuredStyleUrl: unknown = import.meta.env.VITE_MAP_STYLE_URL;
 const mapStyleUrl =
   typeof configuredStyleUrl === "string" && configuredStyleUrl !== ""

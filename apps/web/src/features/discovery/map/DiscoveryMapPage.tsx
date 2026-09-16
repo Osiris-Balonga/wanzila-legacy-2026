@@ -21,7 +21,7 @@ import type { DiscoveryLoadState, DiscoveryUrlState } from "../types";
 import { PharmacyMap } from "./PharmacyMap";
 import "./discovery-map.css";
 
-const districts = ["Plateau", "Bacongo", "Moungali"];
+const districts = ["Plateau", "Poto-Poto", "Bacongo", "Moungali"];
 const arrondissements = ["Poto-Poto", "Moungali", "Bacongo"];
 
 type LoadedState = Exclude<DiscoveryLoadState, { status: "idle" }>;
