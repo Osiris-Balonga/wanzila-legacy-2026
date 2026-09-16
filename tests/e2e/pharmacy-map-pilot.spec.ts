@@ -35,20 +35,33 @@ const pharmacy = (
 
 test.beforeEach(async ({ page }) => {
   if (process.env.WANZILA_LIVE_MAP !== "1") {
-    await page.route("https://tiles.openfreemap.org/planet", (route) =>
+    await page.route("**/maps/wanzila-style.json", (route) =>
       route.fulfill({
         json: {
-          tilejson: "3.0.0",
-          tiles: ["https://tiles.openfreemap.org/test/{z}/{x}/{y}.pbf"],
-          minzoom: 0,
-          maxzoom: 14,
-          bounds: [-180, -85, 180, 85],
-          vector_layers: [],
+          version: 8,
+          sources: {
+            pharmacies: {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+              attribution:
+                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · <a href="https://openfreemap.org">OpenFreeMap</a>',
+            },
+          },
+          layers: [
+            {
+              id: "background",
+              type: "background",
+              paint: { "background-color": "#f9faff" },
+            },
+            {
+              id: "pharmacies",
+              type: "circle",
+              source: "pharmacies",
+              paint: { "circle-opacity": 0 },
+            },
+          ],
         },
       }),
-    );
-    await page.route("https://tiles.openfreemap.org/test/**", (route) =>
-      route.fulfill({ body: "", contentType: "application/x-protobuf" }),
     );
   }
   await page.route("**/api/v1/pharmacies?**", (route) =>
@@ -87,6 +100,14 @@ test("the mobile map presents reference regions and synchronizes marker/list sel
   ).toBeVisible();
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await expect(
+    page
+      .getByRole("navigation", { name: "Navigation de la carte" })
+      .locator('[aria-current="page"] svg'),
+  ).toHaveCSS("fill", "rgb(98, 56, 232)");
+  await expect(
+    page.getByRole("button", { name: "Couches indisponibles" }).locator("svg"),
+  ).toHaveCSS("fill", "rgb(99, 53, 235)");
+  await expect(
     page.getByRole("searchbox", {
       name: "Rechercher une pharmacie, un quartier",
     }),
@@ -97,6 +118,7 @@ test("the mobile map presents reference regions and synchronizes marker/list sel
   await expect(page.locator(".pharmacy-map__canvas")).toHaveAttribute(
     "data-map-status",
     "ready",
+    { timeout: process.env.WANZILA_LIVE_MAP === "1" ? 30000 : 20000 },
   );
   await expect(
     page.getByRole("link", { name: "OpenStreetMap contributors" }),
@@ -178,6 +200,7 @@ test("map controls remain usable at narrow, tablet and desktop widths", async ({
   await expect(page.locator(".pharmacy-map__canvas")).toHaveAttribute(
     "data-map-status",
     "ready",
+    { timeout: 20000 },
   );
   for (const width of [320, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });

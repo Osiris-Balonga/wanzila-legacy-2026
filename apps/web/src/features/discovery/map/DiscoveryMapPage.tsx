@@ -1,11 +1,12 @@
 import type { ActivePublicPharmacy } from "@wanzila/contracts";
+import { BuildingsIcon } from "@phosphor-icons/react/Buildings";
+import { ClockIcon } from "@phosphor-icons/react/Clock";
+import { MapPinIcon } from "@phosphor-icons/react/MapPin";
+import { StackIcon } from "@phosphor-icons/react/Stack";
 import {
   Bookmark,
-  Clock3,
-  Layers3,
   List,
   LocateFixed,
-  MapPin,
   Navigation,
   Phone,
   Plus,
@@ -102,10 +103,10 @@ export function DiscoveryMapPage({
         </form>
         <div className="discovery-map-filters">
           <span className="discovery-map-filters__active">
-            <Clock3 aria-hidden="true" /> Ouvertes maintenant
+            <ClockIcon aria-hidden="true" weight="fill" /> Ouvertes maintenant
           </span>
           <label>
-            <MapPin aria-hidden="true" />
+            <MapPinIcon aria-hidden="true" weight="fill" />
             <span className="sr-only">Quartier</span>
             <select
               aria-label="Quartier"
@@ -123,7 +124,7 @@ export function DiscoveryMapPage({
             </select>
           </label>
           <label>
-            <Plus aria-hidden="true" />
+            <BuildingsIcon aria-hidden="true" weight="fill" />
             <span className="sr-only">Arrondissement</span>
             <select
               aria-label="Arrondissement"
@@ -185,7 +186,7 @@ export function DiscoveryMapPage({
           title="Couches indisponibles"
           variant="outline"
         >
-          <Layers3 aria-hidden="true" />
+          <StackIcon aria-hidden="true" weight="fill" />
         </Button>
         {!selected ? (
           <Button
@@ -216,7 +217,8 @@ export function DiscoveryMapPage({
             <div>
               <h2>{selected.name}</h2>
               <span className="discovery-map-selection__duty">
-                <Clock3 aria-hidden="true" /> De garde maintenant
+                <ClockIcon aria-hidden="true" weight="fill" /> De garde
+                maintenant
               </span>
             </div>
             <Button
@@ -229,10 +231,11 @@ export function DiscoveryMapPage({
             </Button>
           </div>
           <p>
-            <MapPin aria-hidden="true" /> {selected.address.line}
+            <MapPinIcon aria-hidden="true" weight="fill" />{" "}
+            {selected.address.line}
           </p>
           <p>
-            <Clock3 aria-hidden="true" /> Jusqu’à{" "}
+            <ClockIcon aria-hidden="true" weight="fill" /> Jusqu’à{" "}
             {dutyEnd(selected.currentDuty.endsAt)}
           </p>
           <div className="discovery-map-selection__actions">
@@ -269,7 +272,7 @@ export function DiscoveryMapPage({
       ) : null}
       <nav aria-label="Navigation de la carte" className="discovery-map-nav">
         <span aria-current="page">
-          <MapPin aria-hidden="true" />
+          <MapPinIcon aria-hidden="true" weight="fill" />
           Carte
         </span>
         <button
