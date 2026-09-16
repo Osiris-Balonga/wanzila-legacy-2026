@@ -391,12 +391,15 @@ test("generates deterministic accessible filter and pagination queries", async (
   await mockAdminApi(page, state);
   await signIn(page);
 
-  await page.getByLabel("Filtrer par nom").fill("Nouvelle");
+  await page
+    .getByRole("searchbox", { name: "Rechercher une pharmacie" })
+    .fill("Nouvelle");
+  await page.getByText("Filtres avancés").click();
   await page.getByLabel("District").fill("Plateau");
   await page.getByLabel("Arrondissement").fill("Poto-Poto");
   await page.getByLabel("Statut").selectOption("DRAFT");
   await page.getByLabel("Résultats par page").selectOption("50");
-  await page.getByRole("button", { name: "Appliquer les filtres" }).click();
+  await page.getByRole("button", { name: "Appliquer" }).click();
   await expect
     .poll(() => state.listRequests)
     .toContain(

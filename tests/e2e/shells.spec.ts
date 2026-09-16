@@ -74,9 +74,7 @@ test("the narrow administration Sheet preserves keyboard focus lifecycle", async
   await trigger.press("Enter");
   await expect(sheet).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Fermer" })).toBeVisible();
-  await expect(
-    sheet.getByRole("link", { name: "Vue d’ensemble" }),
-  ).toBeFocused();
+  await expect(sheet.getByRole("link", { name: "Dashboard" })).toBeFocused();
   await expect(
     sheet.getByRole("navigation", { name: "Navigation administration" }),
   ).toBeVisible();

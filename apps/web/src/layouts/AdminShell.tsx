@@ -1,5 +1,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { LogOut } from "lucide-react";
+import { FirstAidKitIcon } from "@phosphor-icons/react/FirstAidKit";
+import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { Icon, type IconName } from "../components/Icon";
 import { EmptyState } from "../components/EmptyState";
 import {
@@ -27,12 +29,14 @@ const administrationLinks: Array<{
   icon: IconName;
   label: string;
 }> = [
-  { href: "/admin", icon: "dashboard", label: "Vue d’ensemble" },
+  { href: "/admin", icon: "dashboard", label: "Dashboard" },
   { href: "/admin/pharmacies", icon: "pharmacy", label: "Pharmacies" },
   { href: "/admin/gardes", icon: "calendar", label: "Gardes" },
   { href: "/admin/contributions", icon: "users", label: "Contributions" },
   { href: "/admin/signalements", icon: "file", label: "Signalements" },
-  { href: "/admin/qualite", icon: "shield", label: "Qualité des données" },
+  { href: "/admin/urgences", icon: "shield", label: "Urgences" },
+  { href: "/admin/qualite", icon: "shield", label: "Sources & qualité" },
+  { href: "/admin/utilisateurs", icon: "users", label: "Utilisateurs" },
   { href: "/admin/parametres", icon: "settings", label: "Paramètres" },
 ];
 const isCurrentRoute = (href: string, pathname: string) =>
@@ -61,7 +65,13 @@ function Navigation({
           key={item.href}
           ref={index === 0 ? firstLinkRef : undefined}
         >
-          <Icon name={item.icon} />
+          {item.icon === "dashboard" ? (
+            <SquaresFourIcon aria-hidden="true" weight="fill" />
+          ) : item.icon === "pharmacy" ? (
+            <FirstAidKitIcon aria-hidden="true" weight="fill" />
+          ) : (
+            <Icon name={item.icon} />
+          )}
           <span>{item.label}</span>
         </a>
       ))}
@@ -107,9 +117,13 @@ export function AdminShell({ pathname }: AdminShellProps) {
           Admin
         </Badge>
         <Navigation pathname={pathname} />
-        <p className="admin-sidebar__note">
-          Fondation de l’espace d’administration.
-        </p>
+        <div className="admin-sidebar__footer">
+          <img alt="" height="32" src="/brand-app-icon.png" width="32" />
+          <span>
+            <strong>Pharma Garde</strong>
+            <small>Une ville en meilleure santé.</small>
+          </span>
+        </div>
       </aside>
       <header className="admin-header">
         <a
@@ -155,6 +169,32 @@ export function AdminShell({ pathname }: AdminShellProps) {
           </SheetContent>
         </Sheet>
         <div className="admin-header__tools">
+          <Label className="sr-only" htmlFor="admin-search">
+            Recherche globale indisponible
+          </Label>
+          <Input
+            disabled
+            id="admin-search"
+            placeholder="Rechercher une pharmacie, une garde, une contribution..."
+          />
+          <Button
+            aria-label="Notifications indisponibles"
+            className="notification-indicator"
+            disabled
+            size="icon"
+            variant="ghost"
+          >
+            <Icon name="bell" />
+          </Button>
+          <div className="admin-account">
+            <span aria-hidden="true" className="admin-account__avatar">
+              A
+            </span>
+            <span className="admin-account__identity">
+              <strong>Administrateur</strong>
+              <small>Compte de gestion</small>
+            </span>
+          </div>
           <Button
             aria-label="Se déconnecter"
             className="admin-sign-out"
@@ -164,18 +204,6 @@ export function AdminShell({ pathname }: AdminShellProps) {
             <LogOut aria-hidden="true" className="admin-sign-out__icon" />
             <span>Se déconnecter</span>
           </Button>
-          <Label className="sr-only" htmlFor="admin-search">
-            Recherche
-          </Label>
-          <Input
-            aria-label="Recherche indisponible"
-            disabled
-            id="admin-search"
-            placeholder="Recherche indisponible"
-          />
-          <span aria-label="Notifications" className="notification-indicator">
-            <Icon name="bell" />
-          </span>
         </div>
       </header>
       <main className="admin-main" id="admin-content">
