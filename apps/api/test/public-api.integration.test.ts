@@ -505,12 +505,19 @@ describe.runIf(runMariaDbTests)("public pharmacy API (MariaDB)", () => {
     expect(response.statusCode).toBe(200);
     expect(emergencyContactsResponseSchema.parse(response.json())).toEqual({
       data: [
-        { id: ids.emergencyFirst, label: "SAMU", phone: "112", position: 1 },
+        {
+          id: ids.emergencyFirst,
+          label: "SAMU",
+          phone: "112",
+          position: 1,
+          updatedAt: expect.any(String) as unknown as string,
+        },
         {
           id: ids.emergencySecond,
           label: "Pompiers",
           phone: "118",
           position: 2,
+          updatedAt: expect.any(String) as unknown as string,
         },
       ],
     });
