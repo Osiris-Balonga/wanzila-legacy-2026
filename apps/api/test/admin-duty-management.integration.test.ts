@@ -446,7 +446,6 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
         "2026-09-16T10:00:00.000Z",
         "2026-09-16T21:00:00.000Z",
       );
-      const adjacent = await create(ids.alpha, END, "2026-09-17T08:00:00.000Z");
       const otherPharmacy = await create(ids.bravo, START, END);
       const approve = (id: string) =>
         app.inject({
@@ -466,6 +465,14 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
           where: { pharmacyId: ids.alpha, status: "APPROVED" },
         }),
       ).toBe(1);
+      const winner = await prisma.dutyPeriod.findFirstOrThrow({
+        where: { pharmacyId: ids.alpha, status: "APPROVED" },
+      });
+      const adjacent = await create(
+        ids.alpha,
+        winner.endsAt.toISOString(),
+        "2026-09-17T08:00:00.000Z",
+      );
       expect((await approve(adjacent.id)).statusCode).toBe(200);
       expect((await approve(otherPharmacy.id)).statusCode).toBe(200);
     });
