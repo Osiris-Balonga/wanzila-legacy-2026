@@ -68,21 +68,23 @@ async function mockDutyApi(
     holdList?: Promise<void>;
   } = {},
 ) {
-  await page.route("**/maps/wanzila-style.json", (route) =>
-    route.fulfill({
-      json: {
-        version: 8,
-        sources: {},
-        layers: [
-          {
-            id: "ground",
-            type: "background",
-            paint: { "background-color": "#edf0f8" },
-          },
-        ],
-      },
-    }),
-  );
+  if (!process.env.WANZILA_DUTY_LIVE_MAP) {
+    await page.route("**/maps/wanzila-style.json", (route) =>
+      route.fulfill({
+        json: {
+          version: 8,
+          sources: {},
+          layers: [
+            {
+              id: "ground",
+              type: "background",
+              paint: { "background-color": "#edf0f8" },
+            },
+          ],
+        },
+      }),
+    );
+  }
   await page.route("**/api/v1/admin/duties/summary", (route) =>
     route.fulfill({
       json: {
@@ -152,10 +154,21 @@ test("list has real summary, resolved pharmacy/source and no invented trends", a
   await expect(list).toContainText(pharmacy.name);
   await expect(list).toContainText(source.name);
   await expect(list).toContainText("Source actualisée");
+  await expect(list.locator("img")).toHaveCount(0);
   await expect(page.getByText(/\+12%|\+8%|\+5%|\+20%/)).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: "Créer une garde" }),
   ).toHaveAttribute("href", "/admin/gardes/nouvelle");
+  await expect(
+    page.getByRole("link", { name: "Voir la pharmacie" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: `Actions pour ${pharmacy.name}` })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "Voir la pharmacie" }),
+  ).toBeVisible();
 });
 
 test("loading, empty and error states remain on the duty surface", async ({
@@ -174,7 +187,7 @@ test("loading, empty and error states remain on the duty surface", async ({
   await page.route("**/api/v1/admin/duties?*", (route) =>
     route.fulfill({
       status: 500,
-      json: { error: { code: "BAD_REQUEST", message: "Indisponible" } },
+      json: { error: "Internal Server Error" },
     }),
   );
   await page.reload();
@@ -226,6 +239,9 @@ test("search, status, source, date interval and pagination use server parameters
   );
   await page.getByRole("button", { name: "Page suivante" }).click();
   await pageRequest;
+  await page.reload();
+  await expect(page.getByLabel("Du")).toHaveValue("2026-09-17");
+  await expect(page.getByLabel("Au")).toHaveValue("2026-09-19");
 });
 
 test("creation validates dates with keyboard then saves a PENDING duty", async ({
@@ -262,7 +278,9 @@ test("creation validates dates with keyboard then saves a PENDING duty", async (
   await save.press("Enter");
   const request = await createRequest;
   expect(request.postDataJSON()).toMatchObject({ pharmacyId, sourceId });
-  await expect(page.getByText(/en attente d.approbation/i)).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    /en attente d.approbation/i,
+  );
   await expect(page.getByText(/automatiquement visible/i)).toHaveCount(0);
 });
 
@@ -305,6 +323,51 @@ test("review actions expose approve, reject and a truthful 409 conflict", async 
   ).toContainText("Rejetée");
 });
 
+test("a successful approval changes only the reviewed PENDING duty", async ({
+  page,
+}) => {
+  await mockDutyApi(page, { duties: [pending], total: 1 });
+  await page.route(`**/api/v1/admin/duties/${pendingId}/approve`, (route) =>
+    route.fulfill({ json: { data: { ...pending, status: "APPROVED" } } }),
+  );
+  await page.goto("/admin/gardes");
+  const approvalRequest = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname.endsWith(
+        `/admin/duties/${pendingId}/approve`,
+      ),
+  );
+  await page
+    .getByRole("button", { name: `Approuver la garde de ${pharmacy.name}` })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Confirmer l’approbation" })
+    .click();
+  await approvalRequest;
+  await expect(
+    page.getByRole("row", { name: new RegExp(pharmacy.name) }),
+  ).toContainText("Approuvée");
+  await expect(page.getByText("Garde publiée", { exact: true })).toHaveCount(0);
+});
+
+test("primary violet actions keep white labels at rest, hover and while disabled", async ({
+  page,
+}) => {
+  await mockDutyApi(page);
+  await page.goto("/admin/gardes");
+  const create = page.getByRole("link", { name: "Créer une garde" });
+  await expect(create).toHaveCSS("color", "rgb(255, 255, 255)");
+  await create.hover();
+  await expect(create).toHaveCSS("color", "rgb(255, 255, 255)");
+  await page.goto("/admin/gardes/nouvelle");
+  const save = page.getByRole("button", { name: "Enregistrer la garde" });
+  await expect(save).toHaveCSS("color", "rgb(255, 255, 255)");
+  await save.evaluate((button) => button.setAttribute("disabled", ""));
+  await expect(save).toHaveCSS("color", "rgb(255, 255, 255)");
+});
+
 test("list and creation remain keyboard accessible without overflow at required widths", async ({
   page,
 }) => {
@@ -315,11 +378,21 @@ test("list and creation remain keyboard accessible without overflow at required 
     await expect(
       page.getByRole("link", { name: "Créer une garde" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Liste des gardes" }),
+    ).toContainText(pharmacy.name);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    if (width <= 390) {
+      expect(
+        await page
+          .locator('[data-slot="table-container"]')
+          .evaluate((table) => table.scrollWidth <= table.clientWidth),
+      ).toBe(true);
+    }
     await page.goto("/admin/gardes/nouvelle");
     await expect(page.getByLabel("Date de début")).toBeVisible();
     expect(
@@ -332,4 +405,44 @@ test("list and creation remain keyboard accessible without overflow at required 
   await date.focus();
   await expect(date).toBeFocused();
   await expect(date).toHaveCSS("outline-style", /solid|auto/);
+});
+
+test("visual evidence at source and responsive widths", async ({
+  page,
+}, testInfo) => {
+  test.skip(!process.env.WANZILA_DUTY_CAPTURE, "Manual evidence capture only");
+  test.setTimeout(180_000);
+  await mockDutyApi(page);
+  for (const width of [390, 1440, 1586]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 992 });
+    await page.goto("/admin/gardes");
+    await expect(
+      page.getByRole("region", { name: "Liste des gardes" }),
+    ).toContainText(pharmacy.name);
+    await page.screenshot({
+      path: testInfo.outputPath(`list-${width}.png`),
+      animations: "disabled",
+      fullPage: true,
+    });
+    await page.goto("/admin/gardes/nouvelle");
+    await chooseOption(page, "Pharmacie", pharmacy.name);
+    await chooseOption(page, "Source du planning", source.name);
+    await page.getByLabel("Date de début").fill("2026-09-17");
+    await page.getByLabel("Heure de début").fill("08:00");
+    await page.getByLabel("Date de fin").fill("2026-09-18");
+    await page.getByLabel("Heure de fin").fill("08:00");
+    await page.getByRole("heading", { name: "Créer une garde" }).click();
+    if (process.env.WANZILA_DUTY_LIVE_MAP) {
+      await expect(
+        page.getByRole("region", {
+          name: `Carte de localisation de ${pharmacy.name}`,
+        }),
+      ).toHaveAttribute("data-map-status", "ready", { timeout: 25_000 });
+    }
+    await page.screenshot({
+      path: testInfo.outputPath(`create-${width}.png`),
+      animations: "disabled",
+      fullPage: true,
+    });
+  }
 });
