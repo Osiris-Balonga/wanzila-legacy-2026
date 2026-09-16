@@ -47,7 +47,9 @@ loading/empty/error/401/403 states, semantic event tables, responsive regions an
 top-five coordinate markers. Playwright captures for both routes at
 320/390/768/1440 are uploaded under `visual-evidence` in Browser CI. The
 deterministic capture style contains a neutral map background; production uses
-the existing MapLibre style. Relative to the mockups:
+the existing MapLibre style. A separate opt-in browser capture with successful
+OpenFreeMap vector tile responses is in `docs/design/evidence/issue-55/`.
+Relative to the mockups:
 
 - Trend percentages, conversion percentages, notification badges, pharmacy
   photos, a global quality score and user-position/heatmap dots are omitted
@@ -56,6 +58,8 @@ the existing MapLibre style. Relative to the mockups:
 - The map shows only geocoded top-five pharmacies and says coverage is partial.
   Its decorative markers have a textual legend and are not dead keyboard
   controls.
+- At 320/390 px the funnel reflows into labelled horizontal bars instead of
+  squeezing six vertical categories; label size and non-overlap are asserted.
 - Filter bars represent top-five filter applications, not search-location
   distributions. The accessible table is labelled “Principales applications”.
 - Contributions and unresolved reports are aggregate actions in waiting, not
@@ -66,5 +70,6 @@ the existing MapLibre style. Relative to the mockups:
   anomaly details and alert priority/age remain unavailable in #54. Quality
   cards expose source and duty counts instead of a fabricated percentage.
 
-`pnpm validate` and 20 dedicated desktop Playwright scenarios on port 4189
-pass locally. Visual approval is pending lead review of the draft PR captures.
+`pnpm validate`, 20 deterministic desktop Playwright scenarios and one opt-in
+live-map scenario on port 4189 pass locally. Visual approval is pending lead
+review of the draft PR captures.

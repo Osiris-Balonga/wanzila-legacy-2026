@@ -349,6 +349,45 @@ test("map uses only real top-pharmacy coordinates, not a synthetic heat layer", 
   await expect(map.getByText("Pharmacie indisponible")).toHaveCount(0);
 });
 
+test("opt-in live map evidence loads real vector tiles", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    process.env.WANZILA_LIVE_MAP_EVIDENCE !== "1",
+    "Network-backed visual evidence is run manually, not in deterministic CI.",
+  );
+  await page.unroute("**/maps/wanzila-style.json");
+  await mockOverview(page);
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  let loadedTiles = 0;
+  page.on("response", (response) => {
+    if (
+      response.ok() &&
+      response.url().startsWith("https://tiles.openfreemap.org/planet/") &&
+      response.url().endsWith(".pbf")
+    ) {
+      loadedTiles += 1;
+    }
+  });
+  await page.goto("/admin");
+  await expect(
+    page.getByRole("region", { name: "Carte d’activité" }),
+  ).toBeVisible();
+  await expect(
+    page.locator('.analytics-map__canvas[data-map-status="ready"]'),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => loadedTiles, { timeout: 30_000 }).toBeGreaterThan(0);
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  const path = testInfo.outputPath("admin-dashboard-live-map-1440.png");
+  await page.screenshot({ path, fullPage: true, animations: "disabled" });
+  await testInfo.attach("admin-dashboard-live-map-1440", {
+    path,
+    contentType: "image/png",
+  });
+});
+
 for (const width of [320, 390, 768, 1440]) {
   for (const route of ["/admin", "/admin/qualite"] as const) {
     test(`${route} preserves reference hierarchy, focus and no overflow at ${width}px`, async ({
@@ -383,6 +422,34 @@ for (const width of [320, 390, 768, 1440]) {
       expect(dimensions.scroll, JSON.stringify(overflowing)).toBe(
         dimensions.client,
       );
+
+      if (route === "/admin" && width <= 390) {
+        await expect(
+          page.getByRole("region", { name: "Tunnel d’activité" }),
+        ).toBeVisible();
+        const rows = await page
+          .locator(".analytics-funnel__item")
+          .evaluateAll((items) =>
+            items.map((item) => {
+              const label = item.querySelector(":scope > span")!;
+              const track = item.querySelector(".analytics-funnel__track")!;
+              const value = item.querySelector(":scope > strong")!;
+              return {
+                fontSize: parseFloat(getComputedStyle(label).fontSize),
+                labelRight: label.getBoundingClientRect().right,
+                trackLeft: track.getBoundingClientRect().left,
+                trackRight: track.getBoundingClientRect().right,
+                valueLeft: value.getBoundingClientRect().left,
+              };
+            }),
+          );
+        expect(rows).toHaveLength(6);
+        for (const row of rows) {
+          expect(row.fontSize).toBeGreaterThanOrEqual(11);
+          expect(row.labelRight).toBeLessThanOrEqual(row.trackLeft);
+          expect(row.trackRight).toBeLessThanOrEqual(row.valueLeft);
+        }
+      }
 
       if (width === 1440) {
         const metrics = await page

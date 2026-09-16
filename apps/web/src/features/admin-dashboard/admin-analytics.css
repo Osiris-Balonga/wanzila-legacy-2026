@@ -334,7 +334,7 @@
   background: var(--primary);
   border-radius: 0.3rem 0.3rem 0 0;
   display: block;
-  min-height: 0;
+  height: var(--analytics-ratio);
   width: min(100%, 3.8rem);
 }
 
@@ -726,10 +726,37 @@
     padding: 0.85rem;
   }
   .analytics-funnel__chart {
-    gap: 0.18rem;
+    align-items: stretch;
+    display: grid;
+    gap: 0.65rem;
+    min-height: 0;
+  }
+  .analytics-funnel__item {
+    align-items: center;
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+    text-align: left;
+  }
+  .analytics-funnel__item > strong {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .analytics-funnel__track {
+    height: 0.8rem;
+    grid-column: 2;
+    grid-row: 1;
   }
   .analytics-funnel__item > span {
-    font-size: 0.59rem;
+    font-size: 0.72rem;
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+  }
+  .analytics-funnel__track span {
+    border-radius: 0.3rem;
+    height: 100%;
+    width: var(--analytics-ratio);
   }
   .analytics-top-list li {
     grid-template-columns: 1.8rem minmax(0, 1fr);

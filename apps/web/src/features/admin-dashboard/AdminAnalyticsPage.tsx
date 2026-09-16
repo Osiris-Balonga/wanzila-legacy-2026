@@ -262,9 +262,11 @@ function Funnel({ overview }: { overview: Overview }) {
             <strong>{count(overview.events.totals[key])}</strong>
             <div className="analytics-funnel__track">
               <span
-                style={{
-                  height: `${(overview.events.totals[key] / max) * 100}%`,
-                }}
+                style={
+                  {
+                    "--analytics-ratio": `${(overview.events.totals[key] / max) * 100}%`,
+                  } as CSSProperties
+                }
               />
             </div>
             <span>{label}</span>
