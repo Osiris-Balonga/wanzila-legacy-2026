@@ -131,6 +131,7 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
     let prisma: ApiPrismaClient;
     let app: Awaited<ReturnType<typeof createApp>>;
     let cookie: string;
+    let currentTime: Date;
 
     beforeAll(async () => {
       const command = "pnpm --filter @wanzila/api db:migrate";
@@ -145,6 +146,7 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
     }, 60_000);
 
     beforeEach(async () => {
+      currentTime = NOW;
       prisma = createPrismaClient(disposableTestDatabaseUrl);
       await clearFixtures(prisma);
       const bootstrap = await bootstrapAdministrator({
@@ -161,7 +163,7 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
       app = await createApp({
         prisma,
         webOrigin: WEB_ORIGIN,
-        now: () => NOW,
+        now: () => currentTime,
         nodeEnvironment: "test",
       });
       const signedIn = await app.inject({
@@ -254,6 +256,21 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
           })
         ).observedAt.toISOString(),
       ).toBe("2026-09-15T00:00:00.000Z");
+      const futureCorrection = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/sources/${source.id}`,
+        headers: mutationHeaders(cookie),
+        payload: { observedAt: "2026-09-16T12:00:00.001Z" },
+      });
+      expect(futureCorrection.statusCode).toBe(400);
+      expect(errorCode(futureCorrection)).toBe("BAD_REQUEST");
+      expect(
+        (
+          await prisma.scheduleSource.findUniqueOrThrow({
+            where: { id: source.id },
+          })
+        ).observedAt.toISOString(),
+      ).toBe("2026-09-15T00:00:00.000Z");
     });
 
     it("creates PENDING duties, filters and paginates them, then publishes only after approval", async () => {
@@ -313,6 +330,19 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
           },
         ],
       });
+      const terminalPatch = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/duties/${duty.id}`,
+        headers: mutationHeaders(cookie),
+        payload: { endsAt: "2026-09-16T21:00:00.000Z" },
+      });
+      expect(terminalPatch.statusCode).toBe(409);
+      expect(errorCode(terminalPatch)).toBe("CONFLICT");
+      expect(
+        (
+          await prisma.dutyPeriod.findUniqueOrThrow({ where: { id: duty.id } })
+        ).endsAt.toISOString(),
+      ).toBe(END);
     });
 
     it("updates only PENDING duty metadata and rejects foreign source IDs", async () => {
@@ -378,6 +408,19 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
       });
       expect(retry.statusCode).toBe(409);
       expect(errorCode(retry)).toBe("CONFLICT");
+      const terminalPatch = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/duties/${dutyId}`,
+        headers: mutationHeaders(cookie),
+        payload: { endsAt: "2026-09-16T21:00:00.000Z" },
+      });
+      expect(terminalPatch.statusCode).toBe(409);
+      expect(errorCode(terminalPatch)).toBe("CONFLICT");
+      const persisted = await prisma.dutyPeriod.findUniqueOrThrow({
+        where: { id: dutyId },
+      });
+      expect(persisted.status).toBe("REJECTED");
+      expect(persisted.endsAt.toISOString()).toBe(END);
       const publicList = await app.inject({
         method: "GET",
         url: "/api/v1/pharmacies",
@@ -425,6 +468,34 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
       ).toBe(1);
       expect((await approve(adjacent.id)).statusCode).toBe(200);
       expect((await approve(otherPharmacy.id)).statusCode).toBe(200);
+    });
+
+    it("keeps public discovery inside the approved half-open [start,end) window", async () => {
+      await prisma.dutyPeriod.create({
+        data: {
+          pharmacyId: ids.alpha,
+          startsAt: new Date(START),
+          endsAt: new Date(END),
+          status: "APPROVED",
+        },
+      });
+      for (const [instant, visible] of [
+        ["2026-09-16T07:59:59.999Z", false],
+        [START, true],
+        ["2026-09-16T19:59:59.999Z", true],
+        [END, false],
+      ] as const) {
+        currentTime = new Date(instant);
+        const response = await app.inject({
+          method: "GET",
+          url: "/api/v1/pharmacies",
+        });
+        expect(response.statusCode).toBe(200);
+        const pharmacies = responseData<Array<{ id: string }>>(response);
+        expect(pharmacies.some((pharmacy) => pharmacy.id === ids.alpha)).toBe(
+          visible,
+        );
+      }
     });
 
     it("applies bounded cancellation/unavailability and rejects overlapping exceptions", async () => {
@@ -505,6 +576,28 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
         },
       });
       expect(adjacent.statusCode).toBe(201);
+      for (const [payload, statusCode, code] of [
+        [{ startsAt: "2026-09-16T07:59:59.999Z" }, 400, "BAD_REQUEST"],
+        [{ endsAt: "2026-09-16T15:00:00.000Z" }, 409, "CONFLICT"],
+      ] as const) {
+        const invalidPatch = await app.inject({
+          method: "PATCH",
+          url: `${base}/${exceptionId}`,
+          headers: mutationHeaders(cookie),
+          payload,
+        });
+        expect(invalidPatch.statusCode).toBe(statusCode);
+        expect(errorCode(invalidPatch)).toBe(code);
+      }
+      const persistedException = await prisma.dutyException.findUniqueOrThrow({
+        where: { id: exceptionId },
+      });
+      expect(persistedException.startsAt.toISOString()).toBe(
+        "2026-09-16T10:00:00.000Z",
+      );
+      expect(persistedException.endsAt.toISOString()).toBe(
+        "2026-09-16T14:00:00.000Z",
+      );
       const list = await app.inject({
         method: "GET",
         url: `${base}?page=1&pageSize=2`,
