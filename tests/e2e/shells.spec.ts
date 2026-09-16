@@ -84,10 +84,10 @@ test("the narrow administration Sheet preserves keyboard focus lifecycle", async
   await expect(trigger).toBeFocused();
 });
 
-test("administration tabs support pointer and keyboard selection", async ({
+test("administration placeholder tabs support pointer and keyboard selection", async ({
   page,
 }) => {
-  await page.goto("/admin");
+  await page.goto("/admin/parametres");
   const tablist = page.getByRole("tablist", {
     name: "Sections de démonstration",
   });
