@@ -315,9 +315,25 @@
   color: #8e1230;
 }
 
+.admin-duty__auth a {
+  color: #6929dd;
+  display: inline-block;
+  font-weight: 700;
+  margin-top: 0.35rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
 .admin-duty__success {
   background: var(--success-soft);
   color: #006943;
+}
+
+.admin-duty__success a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
 }
 
 .admin-duty__loading,
@@ -506,19 +522,14 @@
   min-width: 0;
 }
 
-.admin-duty__preview-facts svg,
-.admin-duty__source-glyph {
+.admin-duty__preview-facts svg {
   color: var(--primary);
   flex: none;
   height: 1.1rem;
   width: 1.1rem;
 }
 
-.admin-duty__source-glyph {
-  font-weight: 800;
-}
-
-.admin-duty__preview-facts span:not(.admin-duty__source-glyph) {
+.admin-duty__preview-facts span {
   color: var(--muted);
   display: grid;
   font-size: 0.75rem;

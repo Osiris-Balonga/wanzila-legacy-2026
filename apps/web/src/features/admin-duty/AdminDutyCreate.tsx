@@ -2,9 +2,10 @@ import type { AdminPharmacy, AdminScheduleSource } from "@wanzila/contracts";
 import { CalendarIcon } from "@phosphor-icons/react/Calendar";
 import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { MapPinIcon } from "@phosphor-icons/react/MapPin";
 import { ArrowLeft, Save, Search } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   createDuty,
   DutyHttpError,
+  isDutyAuthError,
   listPharmacies,
   listSources,
 } from "./admin-duty-client";
+import { DutyAuthNotice } from "./DutyAuthNotice";
 import { DutyLocationMap } from "./DutyLocationMap";
 
 type OptionsState =
@@ -40,6 +43,18 @@ function instant(date: string, time: string): string | null {
   if (!date || !time) return null;
   const value = new Date(`${date}T${time}:00+01:00`);
   return Number.isNaN(value.getTime()) ? null : value.toISOString();
+}
+
+function distinctAddressParts(...parts: string[]): string {
+  const seen = new Set<string>();
+  return parts
+    .filter((part) => {
+      const normalized = part.trim().toLocaleLowerCase("fr-CG");
+      if (!normalized || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    })
+    .join(", ");
 }
 
 function durationLabel(startsAt: string | null, endsAt: string | null): string {
@@ -73,6 +88,8 @@ export function AdminDutyCreate() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const submissionLockedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,8 +97,10 @@ export function AdminDutyCreate() {
       .then(([pharmacies, sources]) => {
         if (!cancelled) setOptions({ kind: "ready", pharmacies, sources });
       })
-      .catch(() => {
-        if (!cancelled) setOptions({ kind: "error" });
+      .catch((failure: unknown) => {
+        if (cancelled) return;
+        if (isDutyAuthError(failure)) setAuthRequired(true);
+        else setOptions({ kind: "error" });
       });
     return () => {
       cancelled = true;
@@ -99,20 +118,32 @@ export function AdminDutyCreate() {
   const startsAt = instant(startDate, startTime);
   const endsAt = instant(endDate, endTime);
 
+  function changePayload(update: () => void) {
+    if (saved) {
+      setSaved(false);
+      submissionLockedRef.current = false;
+    }
+    update();
+  }
+
   async function searchPharmacies(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (options.kind !== "ready") return;
     try {
       const pharmacies = await listPharmacies(pharmacySearch);
       setOptions({ ...options, pharmacies });
-      if (!pharmacies.some((item) => item.id === pharmacyId)) setPharmacyId("");
-    } catch {
-      setError("La recherche de pharmacies est indisponible.");
+      if (!pharmacies.some((item) => item.id === pharmacyId)) {
+        changePayload(() => setPharmacyId(""));
+      }
+    } catch (failure) {
+      if (isDutyAuthError(failure)) setAuthRequired(true);
+      else setError("La recherche de pharmacies est indisponible.");
     }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submissionLockedRef.current) return;
     setError("");
     setSaved(false);
     if (!pharmacyId || !startsAt || !endsAt) {
@@ -125,7 +156,9 @@ export function AdminDutyCreate() {
       setError("La fin doit être après le début.");
       return;
     }
+    submissionLockedRef.current = true;
     setSaving(true);
+    let completed = false;
     try {
       const duty = await createDuty({
         pharmacyId,
@@ -139,16 +172,32 @@ export function AdminDutyCreate() {
         );
         return;
       }
+      completed = true;
       setSaved(true);
     } catch (failure) {
-      setError(
-        failure instanceof DutyHttpError && failure.status === 409
-          ? "Conflit de garde : la période n’a pas été enregistrée."
-          : "La garde n’a pas pu être enregistrée. Vérifiez les données et réessayez.",
-      );
+      if (isDutyAuthError(failure)) setAuthRequired(true);
+      else {
+        setError(
+          failure instanceof DutyHttpError && failure.status === 409
+            ? "Conflit de garde : la période n’a pas été enregistrée."
+            : "La garde n’a pas pu être enregistrée. Vérifiez les données et réessayez.",
+        );
+      }
     } finally {
+      if (!completed) submissionLockedRef.current = false;
       setSaving(false);
     }
+  }
+
+  if (authRequired) {
+    return (
+      <div className="admin-duty admin-duty--create">
+        <header className="admin-duty__heading">
+          <h1>Créer une garde</h1>
+        </header>
+        <DutyAuthNotice />
+      </div>
+    );
   }
 
   return (
@@ -226,7 +275,12 @@ export function AdminDutyCreate() {
                   <Label htmlFor="admin-duty-pharmacy">
                     Pharmacie <span aria-hidden="true">*</span>
                   </Label>
-                  <Select onValueChange={setPharmacyId} value={pharmacyId}>
+                  <Select
+                    onValueChange={(value) =>
+                      changePayload(() => setPharmacyId(value))
+                    }
+                    value={pharmacyId}
+                  >
                     <SelectTrigger
                       aria-label="Pharmacie"
                       id="admin-duty-pharmacy"
@@ -254,7 +308,9 @@ export function AdminDutyCreate() {
                     </Label>
                     <Input
                       id="admin-duty-start-date"
-                      onChange={(event) => setStartDate(event.target.value)}
+                      onChange={(event) =>
+                        changePayload(() => setStartDate(event.target.value))
+                      }
                       type="date"
                       value={startDate}
                     />
@@ -265,7 +321,9 @@ export function AdminDutyCreate() {
                     </Label>
                     <Input
                       id="admin-duty-start-time"
-                      onChange={(event) => setStartTime(event.target.value)}
+                      onChange={(event) =>
+                        changePayload(() => setStartTime(event.target.value))
+                      }
                       type="time"
                       value={startTime}
                     />
@@ -276,7 +334,9 @@ export function AdminDutyCreate() {
                     </Label>
                     <Input
                       id="admin-duty-end-date"
-                      onChange={(event) => setEndDate(event.target.value)}
+                      onChange={(event) =>
+                        changePayload(() => setEndDate(event.target.value))
+                      }
                       type="date"
                       value={endDate}
                     />
@@ -287,7 +347,9 @@ export function AdminDutyCreate() {
                     </Label>
                     <Input
                       id="admin-duty-end-time"
-                      onChange={(event) => setEndTime(event.target.value)}
+                      onChange={(event) =>
+                        changePayload(() => setEndTime(event.target.value))
+                      }
                       type="time"
                       value={endTime}
                     />
@@ -297,7 +359,9 @@ export function AdminDutyCreate() {
                   <Label htmlFor="admin-duty-source">Source du planning</Label>
                   <Select
                     onValueChange={(value) =>
-                      setSourceId(value === "none" ? "" : value)
+                      changePayload(() =>
+                        setSourceId(value === "none" ? "" : value),
+                      )
                     }
                     value={sourceId || "none"}
                   >
@@ -336,7 +400,8 @@ export function AdminDutyCreate() {
                 {saved ? (
                   <p className="admin-duty__success" role="status">
                     Garde enregistrée en attente d’approbation. Elle n’est pas
-                    encore publiée.
+                    encore publiée.{" "}
+                    <a href="/admin/gardes">Voir la liste des gardes</a>
                   </p>
                 ) : null}
                 <div className="admin-duty__form-actions">
@@ -345,7 +410,7 @@ export function AdminDutyCreate() {
                   </Button>
                   <Button
                     className="admin-duty__primary-action"
-                    disabled={saving}
+                    disabled={saving || saved}
                     type="submit"
                   >
                     <Save aria-hidden="true" />
@@ -377,7 +442,10 @@ export function AdminDutyCreate() {
               </strong>
               {pharmacy ? (
                 <p>
-                  {pharmacy.address.district}, {pharmacy.address.arrondissement}
+                  {distinctAddressParts(
+                    pharmacy.address.district,
+                    pharmacy.address.arrondissement,
+                  )}
                 </p>
               ) : null}
               <Badge variant="secondary">
@@ -403,9 +471,7 @@ export function AdminDutyCreate() {
                   </span>
                 </div>
                 <div>
-                  <span aria-hidden="true" className="admin-duty__source-glyph">
-                    S
-                  </span>
+                  <FileTextIcon aria-hidden="true" weight="fill" />
                   <span>
                     Source<strong>{source?.name ?? "Sans source"}</strong>
                   </span>
@@ -419,8 +485,11 @@ export function AdminDutyCreate() {
                 <DutyLocationMap pharmacy={pharmacy} />
                 <p>
                   <MapPinIcon aria-hidden="true" weight="fill" />
-                  {pharmacy.address.line}, {pharmacy.address.district},{" "}
-                  {pharmacy.address.arrondissement}
+                  {distinctAddressParts(
+                    pharmacy.address.line,
+                    pharmacy.address.district,
+                    pharmacy.address.arrondissement,
+                  )}
                 </p>
               </CardContent>
             </Card>

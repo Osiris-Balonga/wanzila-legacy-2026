@@ -62,8 +62,8 @@ async function chooseOption(page: Page, label: string, option: string) {
 async function mockDutyApi(
   page: Page,
   options: {
-    duties?: (typeof pending)[];
-    total?: number;
+    duties?: (typeof pending)[] | ((url: URL) => (typeof pending)[]);
+    total?: number | ((url: URL) => number);
     listStatus?: number;
     holdList?: Promise<void>;
   } = {},
@@ -100,9 +100,16 @@ async function mockDutyApi(
   );
   await page.route("**/api/v1/admin/duties?*", async (route) => {
     await options.holdList;
-    const requestedPage = Number(
-      new URL(route.request().url()).searchParams.get("page") ?? 1,
-    );
+    const url = new URL(route.request().url());
+    const requestedPage = Number(url.searchParams.get("page") ?? 1);
+    const duties =
+      typeof options.duties === "function"
+        ? options.duties(url)
+        : (options.duties ?? [pending, approved]);
+    const total =
+      typeof options.total === "function"
+        ? options.total(url)
+        : (options.total ?? 12);
     await route.fulfill({
       status: options.listStatus ?? 200,
       json:
@@ -111,8 +118,8 @@ async function mockDutyApi(
               error: { code: "BAD_REQUEST", message: "Recherche indisponible" },
             }
           : {
-              data: options.duties ?? [pending, approved],
-              pagination: pagination(options.total ?? 12, requestedPage),
+              data: duties,
+              pagination: pagination(total, requestedPage),
             },
     });
   });
@@ -248,8 +255,10 @@ test("creation validates dates with keyboard then saves a PENDING duty", async (
   page,
 }) => {
   await mockDutyApi(page);
+  let postCount = 0;
   await page.route("**/api/v1/admin/duties", (route) => {
     if (route.request().method() === "POST") {
+      postCount += 1;
       return route.fulfill({ status: 201, json: { data: pending } });
     }
     return route.continue();
@@ -260,6 +269,13 @@ test("creation validates dates with keyboard then saves a PENDING duty", async (
   ).toBeVisible();
   await chooseOption(page, "Pharmacie", pharmacy.name);
   await chooseOption(page, "Source du planning", source.name);
+  const preview = page.getByRole("complementary", {
+    name: "Aperçu de la garde",
+  });
+  await expect(preview).not.toContainText("Bacongo, Bacongo");
+  await expect(
+    preview.locator(".admin-duty__preview-facts > div").last().locator("svg"),
+  ).toBeVisible();
   await page.getByLabel("Date de début").fill("2026-09-18");
   await page.getByLabel("Heure de début").fill("08:00");
   await page.getByLabel("Date de fin").fill("2026-09-17");
@@ -281,13 +297,25 @@ test("creation validates dates with keyboard then saves a PENDING duty", async (
   await expect(page.getByRole("status")).toContainText(
     /en attente d.approbation/i,
   );
+  await expect(save).toBeDisabled();
+  await page.keyboard.press("Enter");
+  expect(postCount).toBe(1);
+  await expect(
+    page.getByRole("link", { name: "Voir la liste des gardes" }),
+  ).toHaveAttribute("href", "/admin/gardes");
+  await page.getByLabel("Date de fin").fill("2026-09-20");
+  await expect(save).toBeEnabled();
   await expect(page.getByText(/automatiquement visible/i)).toHaveCount(0);
 });
 
 test("review actions expose approve, reject and a truthful 409 conflict", async ({
   page,
 }) => {
-  await mockDutyApi(page, { duties: [pending], total: 1 });
+  let rejected = false;
+  await mockDutyApi(page, {
+    duties: () => [{ ...pending, status: rejected ? "REJECTED" : "PENDING" }],
+    total: 1,
+  });
   await page.route(`**/api/v1/admin/duties/${pendingId}/approve`, (route) =>
     route.fulfill({
       status: 409,
@@ -296,9 +324,12 @@ test("review actions expose approve, reject and a truthful 409 conflict", async 
       },
     }),
   );
-  await page.route(`**/api/v1/admin/duties/${pendingId}/reject`, (route) =>
-    route.fulfill({ json: { data: { ...pending, status: "REJECTED" } } }),
-  );
+  await page.route(`**/api/v1/admin/duties/${pendingId}/reject`, (route) => {
+    rejected = true;
+    return route.fulfill({
+      json: { data: { ...pending, status: "REJECTED" } },
+    });
+  });
   await page.goto("/admin/gardes");
   await page
     .getByRole("button", { name: `Approuver la garde de ${pharmacy.name}` })
@@ -326,10 +357,19 @@ test("review actions expose approve, reject and a truthful 409 conflict", async 
 test("a successful approval changes only the reviewed PENDING duty", async ({
   page,
 }) => {
-  await mockDutyApi(page, { duties: [pending], total: 1 });
-  await page.route(`**/api/v1/admin/duties/${pendingId}/approve`, (route) =>
-    route.fulfill({ json: { data: { ...pending, status: "APPROVED" } } }),
-  );
+  let approvedOnServer = false;
+  await mockDutyApi(page, {
+    duties: () => [
+      { ...pending, status: approvedOnServer ? "APPROVED" : "PENDING" },
+    ],
+    total: 1,
+  });
+  await page.route(`**/api/v1/admin/duties/${pendingId}/approve`, (route) => {
+    approvedOnServer = true;
+    return route.fulfill({
+      json: { data: { ...pending, status: "APPROVED" } },
+    });
+  });
   await page.goto("/admin/gardes");
   const approvalRequest = page.waitForRequest(
     (request) =>
@@ -350,6 +390,105 @@ test("a successful approval changes only the reviewed PENDING duty", async ({
     page.getByRole("row", { name: new RegExp(pharmacy.name) }),
   ).toContainText("Approuvée");
   await expect(page.getByText("Garde publiée", { exact: true })).toHaveCount(0);
+});
+
+test("review refetches filtered PENDING rows and corrects the last page", async ({
+  page,
+}) => {
+  let reviewed = false;
+  let listRequests = 0;
+  const otherPending = Array.from({ length: 10 }, (_, index) => ({
+    ...pending,
+    id: `00000000-0000-4000-8000-${String(4910 + index).padStart(12, "0")}`,
+  }));
+  const matching = (url: URL) => {
+    listRequests += 1;
+    const rows = reviewed ? otherPending : [...otherPending, pending];
+    const pageNumber = Number(url.searchParams.get("page") ?? 1);
+    return rows.slice((pageNumber - 1) * 10, pageNumber * 10);
+  };
+  await mockDutyApi(page, {
+    duties: matching,
+    total: () => (reviewed ? 10 : 11),
+  });
+  await page.route(`**/api/v1/admin/duties/${pendingId}/approve`, (route) => {
+    reviewed = true;
+    return route.fulfill({
+      json: { data: { ...pending, status: "APPROVED" } },
+    });
+  });
+  await page.goto("/admin/gardes?status=PENDING&page=2");
+  await expect(
+    page.getByRole("navigation", { name: "Pagination des gardes" }),
+  ).toContainText("Page 2 sur 2");
+  const summaryRefresh = page.waitForRequest((request) =>
+    new URL(request.url()).pathname.endsWith("/admin/duties/summary"),
+  );
+  await page
+    .getByRole("button", { name: `Approuver la garde de ${pharmacy.name}` })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Confirmer l’approbation" })
+    .click();
+  await expect(page).toHaveURL(/status=PENDING(?!.*page=2)/);
+  await expect(
+    page.getByRole("navigation", { name: "Pagination des gardes" }),
+  ).toContainText("Affichage de 1 à 10 sur 10 gardes");
+  await expect(
+    page.getByRole("navigation", { name: "Pagination des gardes" }),
+  ).toContainText("Page 1 sur 1");
+  await expect.poll(() => listRequests).toBeGreaterThanOrEqual(3);
+  await summaryRefresh;
+});
+
+test("a 401 on list data offers the admin sign-in route", async ({ page }) => {
+  await mockDutyApi(page, { listStatus: 401 });
+  await page.goto("/admin/gardes");
+  await expect(
+    page.getByRole("link", { name: "Se connecter à l’administration" }),
+  ).toHaveAttribute("href", "/admin/connexion");
+  await expect(page.getByText(/gardes.*indisponibles/i)).toHaveCount(0);
+});
+
+test("a 401 while loading creation choices offers sign-in", async ({
+  page,
+}) => {
+  await mockDutyApi(page);
+  await page.route("**/api/v1/admin/pharmacies?*", (route) =>
+    route.fulfill({
+      status: 401,
+      json: { error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in" } },
+    }),
+  );
+  await page.goto("/admin/gardes/nouvelle");
+  await expect(
+    page.getByRole("link", { name: "Se connecter à l’administration" }),
+  ).toHaveAttribute("href", "/admin/connexion");
+  await expect(page.getByText("Informations indisponibles")).toHaveCount(0);
+});
+
+test("a 401 on creation POST offers sign-in without claiming a server outage", async ({
+  page,
+}) => {
+  await mockDutyApi(page);
+  await page.route("**/api/v1/admin/duties", (route) =>
+    route.fulfill({
+      status: 401,
+      json: { error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in" } },
+    }),
+  );
+  await page.goto("/admin/gardes/nouvelle");
+  await chooseOption(page, "Pharmacie", pharmacy.name);
+  await page.getByLabel("Date de début").fill("2026-09-17");
+  await page.getByLabel("Heure de début").fill("08:00");
+  await page.getByLabel("Date de fin").fill("2026-09-18");
+  await page.getByLabel("Heure de fin").fill("08:00");
+  await page.getByRole("button", { name: "Enregistrer la garde" }).click();
+  await expect(
+    page.getByRole("link", { name: "Se connecter à l’administration" }),
+  ).toHaveAttribute("href", "/admin/connexion");
+  await expect(page.getByText(/n’a pas pu être enregistrée/i)).toHaveCount(0);
 });
 
 test("primary violet actions keep white labels at rest, hover and while disabled", async ({
@@ -412,13 +551,16 @@ test("visual evidence at source and responsive widths", async ({
 }, testInfo) => {
   test.skip(!process.env.WANZILA_DUTY_CAPTURE, "Manual evidence capture only");
   test.setTimeout(180_000);
-  await mockDutyApi(page);
+  await mockDutyApi(page, { total: 2 });
   for (const width of [390, 1440, 1586]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 992 });
     await page.goto("/admin/gardes");
     await expect(
       page.getByRole("region", { name: "Liste des gardes" }),
     ).toContainText(pharmacy.name);
+    await expect(
+      page.getByRole("navigation", { name: "Pagination des gardes" }),
+    ).toContainText("Affichage de 1 à 2 sur 2 gardes");
     await page.screenshot({
       path: testInfo.outputPath(`list-${width}.png`),
       animations: "disabled",

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/table";
 import {
   DutyHttpError,
+  isDutyAuthError,
   type DutyDirectory,
   type DutyFilters,
   type DutySummary,
@@ -51,6 +52,7 @@ import {
   loadSummary,
   reviewDuty,
 } from "./admin-duty-client";
+import { DutyAuthNotice } from "./DutyAuthNotice";
 
 type LoadState<T> =
   { kind: "loading" } | { kind: "ready"; data: T } | { kind: "error" };
@@ -307,44 +309,14 @@ export function AdminDutyList() {
     kind: "loading",
   });
   const [reloadKey, setReloadKey] = useState(0);
-  const [summaryReloadKey, setSummaryReloadKey] = useState(0);
+  const [authRequired, setAuthRequired] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState("");
 
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
 
-  useEffect(() => {
-    let cancelled = false;
-    setDirectory({ kind: "loading" });
-    void loadDirectory(filters)
-      .then((data) => {
-        if (!cancelled) setDirectory({ kind: "ready", data });
-      })
-      .catch(() => {
-        if (!cancelled) setDirectory({ kind: "error" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [filters, reloadKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setSummary({ kind: "loading" });
-    void loadSummary()
-      .then((data) => {
-        if (!cancelled) setSummary({ kind: "ready", data });
-      })
-      .catch(() => {
-        if (!cancelled) setSummary({ kind: "error" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [reloadKey, summaryReloadKey]);
-
-  function updateFilters(next: DutyFilters) {
+  const updateFilters = useCallback((next: DutyFilters) => {
     const query = new URLSearchParams();
     if (next.q) query.set("q", next.q);
     if (next.status) query.set("status", next.status);
@@ -359,7 +331,49 @@ export function AdminDutyList() {
       `/admin/gardes${search ? `?${search}` : ""}`,
     );
     setFilters(next);
-  }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDirectory({ kind: "loading" });
+    void loadDirectory(filters)
+      .then((data) => {
+        if (cancelled) return;
+        if (filters.page > 1 && data.pagination.totalPages < filters.page) {
+          updateFilters({
+            ...filters,
+            page: Math.max(1, data.pagination.totalPages),
+          });
+          return;
+        }
+        setDirectory({ kind: "ready", data });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (isDutyAuthError(error)) setAuthRequired(true);
+        else setDirectory({ kind: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filters, reloadKey, updateFilters]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSummary({ kind: "loading" });
+    void loadSummary()
+      .then((data) => {
+        if (!cancelled) setSummary({ kind: "ready", data });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (isDutyAuthError(error)) setAuthRequired(true);
+        else setSummary({ kind: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -381,27 +395,15 @@ export function AdminDutyList() {
     setReviewBusy(true);
     setReviewError("");
     try {
-      const updated = await reviewDuty(
-        reviewTarget.duty.id,
-        reviewTarget.action,
-      );
-      setDirectory((current) =>
-        current.kind === "ready"
-          ? {
-              kind: "ready",
-              data: {
-                ...current.data,
-                duties: current.data.duties.map((duty) =>
-                  duty.id === updated.id ? updated : duty,
-                ),
-              },
-            }
-          : current,
-      );
+      await reviewDuty(reviewTarget.duty.id, reviewTarget.action);
       setReviewTarget(null);
-      setSummaryReloadKey((value) => value + 1);
+      refresh();
     } catch (error) {
       setReviewTarget(null);
+      if (isDutyAuthError(error)) {
+        setAuthRequired(true);
+        return;
+      }
       setReviewError(
         error instanceof DutyHttpError && error.status === 409
           ? "Conflit de garde : une période approuvée se chevauche ou le statut a changé. Rechargez la liste avant de réessayer."
@@ -415,6 +417,17 @@ export function AdminDutyList() {
   const sourceOptions =
     directory.kind === "ready" ? directory.data.sources : [];
   const page = directory.kind === "ready" ? directory.data.pagination : null;
+
+  if (authRequired) {
+    return (
+      <div className="admin-duty">
+        <header className="admin-duty__heading">
+          <h1>Gardes</h1>
+        </header>
+        <DutyAuthNotice />
+      </div>
+    );
+  }
 
   return (
     <div className="admin-duty">

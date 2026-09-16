@@ -42,6 +42,13 @@ export class DutyHttpError extends Error {
   }
 }
 
+export function isDutyAuthError(error: unknown): boolean {
+  return (
+    error instanceof DutyHttpError &&
+    (error.status === 401 || error.code === "AUTHENTICATION_REQUIRED")
+  );
+}
+
 async function request(path: string, init?: RequestInit): Promise<unknown> {
   const headers = new Headers(init?.headers);
   if (init?.body) headers.set("content-type", "application/json");

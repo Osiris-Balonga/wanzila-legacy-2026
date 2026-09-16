@@ -29,7 +29,7 @@ No duty-specific photo, trend series, calendar data or internal note/history con
 
 ## Responsive and interaction proof
 
-`tests/e2e/admin-duty-ui.spec.ts` exercises 320/390/768/1440 px without document overflow; mobile list rows stack their fields without an inner horizontal scroll. It also exercises keyboard focus, date validation, PENDING create, successful approval, rejection, 409 conflict feedback, loading/empty/error, real server query parameters and pagination, and white text on primary purple actions at rest/hover/disabled. The screenshot capture runs with `WANZILA_E2E_PORT=4188 WANZILA_DUTY_CAPTURE=1 WANZILA_DUTY_LIVE_MAP=1` and waits for MapLibre readiness.
+`tests/e2e/admin-duty-ui.spec.ts` exercises 320/390/768/1440 px without document overflow; mobile list rows stack their fields without an inner horizontal scroll. It also exercises keyboard focus, date validation, one PENDING create request despite repeated activation, successful approval/rejection with server re-fetch and filtered pagination correction, 409 conflict feedback, distinct 401 sign-in paths on list/creation, loading/empty/error, real server query parameters, and white text on primary purple actions at rest/hover/disabled. The screenshot capture runs with `WANZILA_E2E_PORT=4188 WANZILA_DUTY_CAPTURE=1 WANZILA_DUTY_LIVE_MAP=1` and waits for MapLibre readiness.
 
 ## Visual approval
 
