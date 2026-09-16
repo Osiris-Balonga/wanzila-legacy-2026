@@ -1,3 +1,5 @@
+import type { AdminAnalyticsOverviewResponse } from "@wanzila/contracts";
+
 export type AnalyticsWindow = "7d" | "30d";
 
 const eventNames = [
@@ -20,7 +22,7 @@ function emptyCounts(): EventCounts {
 export function analyticsOverviewFixture(
   window: AnalyticsWindow = "7d",
   empty = false,
-) {
+): AdminAnalyticsOverviewResponse {
   const days = window === "7d" ? 7 : 30;
   const firstDay = window === "7d" ? 10 : 18;
   const firstMonth = window === "7d" ? 8 : 7;

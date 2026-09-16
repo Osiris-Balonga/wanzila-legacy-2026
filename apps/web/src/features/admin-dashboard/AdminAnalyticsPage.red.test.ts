@@ -1,3 +1,4 @@
+import { adminAnalyticsOverviewResponseSchema } from "@wanzila/contracts";
 import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -12,6 +13,7 @@ type PageState =
   | { status: "loading" }
   | { status: "success"; overview: AnalyticsOverviewFixture["data"] }
   | { status: "empty"; overview: AnalyticsOverviewFixture["data"] }
+  | { status: "auth-required" | "forbidden" }
   | { status: "error" };
 type PageProps = {
   state: PageState;
@@ -22,7 +24,7 @@ type PageProps = {
 type PageName = "AdminDashboardPage" | "AdminDataQualityPage";
 
 async function renderPage(name: PageName, state: PageState): Promise<string> {
-  // The GREEN component does not exist yet; keep RED typecheckable.
+  // Indirect import kept the RED contract typecheckable before implementation.
   const modulePath = "./AdminAnalyticsPage.js";
   const pages = (await import(modulePath)) as Record<
     PageName,
@@ -39,6 +41,21 @@ async function renderPage(name: PageName, state: PageState): Promise<string> {
 }
 
 describe("issue #55 analytics dashboard component contract (RED)", () => {
+  it("uses the merged #54 response schema for all 7d/30d and empty fixtures", () => {
+    for (const window of ["7d", "30d"] as const) {
+      expect(
+        adminAnalyticsOverviewResponseSchema.safeParse(
+          analyticsOverviewFixture(window),
+        ).success,
+      ).toBe(true);
+      expect(
+        adminAnalyticsOverviewResponseSchema.safeParse(
+          analyticsOverviewFixture(window, true),
+        ).success,
+      ).toBe(true);
+    }
+  });
+
   it("replaces the /admin placeholder with the dashboard page heading", () => {
     const markup = renderToStaticMarkup(
       createElement(AdminShell, { pathname: "/admin" }),
@@ -67,9 +84,13 @@ describe("issue #55 analytics dashboard component contract (RED)", () => {
     expect(markup).toMatch(/<table\b/);
     expect(markup).toContain("Pharmacie des Manguiers");
     expect(markup).toContain("Pharmacie indisponible");
+    expect(markup).not.toContain(
+      'href="/admin/pharmacies/00000000-0000-4000-8000-000000005502"',
+    );
     expect(markup).toContain("Bacongo");
     expect(markup).toContain("Poto-Poto");
     expect(markup).toMatch(/application[s]? de filtre/i);
+    expect(markup).toContain("Principales applications de filtres");
     expect(markup).toMatch(/résultats vides|recherches sans résultat/i);
     expect(markup).not.toMatch(/utilisateurs uniques|arrivées vérifiées/i);
     expect(markup).not.toMatch(/vs semaine précédente|\+\d+\s*%/i);
@@ -87,6 +108,11 @@ describe("issue #55 analytics dashboard component contract (RED)", () => {
     expect(markup).toMatch(/alertes|actions à traiter/i);
     expect(markup).toContain("3 contributions en attente");
     expect(markup).toContain("2 signalements non résolus");
+    expect(markup).not.toContain('href="/admin/contributions"');
+    expect(markup).not.toContain('href="/admin/signalements"');
+    expect(markup).toMatch(
+      /gestion des contributions et signalements bientôt disponible/i,
+    );
     expect(markup).toMatch(/activité cartographique (?:partielle|limitée)/i);
     expect(markup).not.toMatch(
       /carte de chaleur|heatmap|position utilisateur/i,
@@ -113,6 +139,23 @@ describe("issue #55 analytics dashboard component contract (RED)", () => {
     expect(error).toContain('role="alert"');
     expect(error).toContain("Réessayer");
   });
+
+  it.each(["AdminDashboardPage", "AdminDataQualityPage"] as const)(
+    "%s distinguishes unauthenticated and forbidden responses from server failure",
+    async (page) => {
+      const unauthenticated = await renderPage(page, {
+        status: "auth-required",
+      });
+      expect(unauthenticated).toContain("Connexion requise");
+      expect(unauthenticated).toContain('href="/admin/connexion"');
+      expect(unauthenticated).not.toContain("Réessayer");
+
+      const forbidden = await renderPage(page, { status: "forbidden" });
+      expect(forbidden).toContain("Accès refusé");
+      expect(forbidden).not.toContain('href="/admin/connexion"');
+      expect(forbidden).not.toContain("Réessayer");
+    },
+  );
 });
 
 describe("issue #55 data-quality component contract (RED)", () => {
@@ -131,15 +174,21 @@ describe("issue #55 data-quality component contract (RED)", () => {
       overview: analyticsOverviewFixture().data,
     });
 
-    expect(markup).toContain("Sources & qualité des données");
+    expect(markup).toContain("Sources &amp; qualité des données");
     expect(markup).toContain("Sources de planning");
     expect(markup).toContain("Couverture des gardes");
     expect(markup).toContain("Qualité des données");
     expect(markup).toContain("Anomalies à traiter");
+    expect(markup).toContain("Actions en attente");
+    expect(markup).toContain("3 contributions en attente");
+    expect(markup).toContain("2 signalements non résolus");
+    expect(markup).not.toContain('href="/admin/contributions"');
+    expect(markup).not.toContain('href="/admin/signalements"');
+    expect(markup).toMatch(/aucun décompte d’anomalies n’est déduit/i);
     expect(markup).toMatch(/sources à jour|sources fraîches/i);
     expect(markup).toMatch(/sources (?:en retard|périmées)/i);
     expect(markup).toMatch(/détail des sources indisponible/i);
-    expect(markup).toMatch(/détail des anomalies indisponible/i);
+    expect(markup).toMatch(/détection des anomalies indisponible/i);
     expect(markup).not.toMatch(/vs semaine précédente|qualité globale.*87%/i);
   });
 

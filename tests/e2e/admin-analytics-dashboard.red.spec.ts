@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { analyticsOverviewFixture } from "../../apps/web/src/features/admin-dashboard/testing/analytics-fixtures";
 
@@ -89,7 +91,8 @@ async function expectPurpleWhiteAction(button: Locator): Promise<void> {
   const ratio =
     (luminance(compositeOnWhite(foreground)) + 0.05) /
     (luminance(compositeOnWhite(background)) + 0.05);
-  expect(ratio).toBeGreaterThanOrEqual(4.5);
+  // Disabled controls are WCAG-exempt; 3:1 is a visual legibility target here.
+  expect(ratio).toBeGreaterThanOrEqual((await button.isDisabled()) ? 3 : 4.5);
 }
 
 test("dashboard and quality routes issue real 7d overview requests and show their required regions", async ({
@@ -121,6 +124,14 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
   await expect(
     page.getByRole("table", { name: /Activité quotidienne/ }),
   ).toHaveCount(1);
+  const alerts = page.getByRole("region", {
+    name: "Alertes et actions à traiter",
+  });
+  await expect(alerts.getByRole("link")).toHaveCount(1);
+  await expect(alerts.getByRole("link")).toHaveAttribute(
+    "href",
+    "/admin/qualite",
+  );
   expect(requests).toContain("/api/v1/admin/analytics/overview?window=7d");
 
   await page.goto("/admin/qualite");
@@ -132,6 +143,7 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
     "Sources de planning",
     "Couverture des gardes",
     "Qualité des données",
+    "Actions en attente",
     "Anomalies à traiter",
   ]) {
     await expect(page.getByRole("region", { name: region })).toBeVisible();
@@ -140,8 +152,11 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
     page.getByText(/Détail des sources indisponible/i),
   ).toBeVisible();
   await expect(
-    page.getByText(/Détail des anomalies indisponible/i),
+    page.getByText(/Détection des anomalies indisponible/i),
   ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Actions en attente" }).getByRole("link"),
+  ).toHaveCount(0);
   expect(
     requests.filter(
       (url) => url === "/api/v1/admin/analytics/overview?window=7d",
@@ -172,7 +187,7 @@ test("period control is keyboard-focusable and changes the actual query to 30d",
   await expect
     .poll(() => requests.at(-1))
     .toBe("/api/v1/admin/analytics/overview?window=30d");
-  await expect(page.getByText(/30 derniers jours/i)).toBeVisible();
+  await expect(period).toHaveValue("30d");
   await expect(
     page.getByRole("table", { name: /Activité quotidienne/ }),
   ).toContainText(/18 août|2026-08-18/i);
@@ -193,6 +208,28 @@ test("period control is keyboard-focusable and changes the actual query to 30d",
 });
 
 for (const route of ["/admin", "/admin/qualite"] as const) {
+  for (const status of [401, 403] as const) {
+    test(`${route} gives a distinct ${status} access state`, async ({
+      page,
+    }) => {
+      await mockOverview(page, { status });
+      await page.goto(route);
+      const alert = page.getByRole("alert");
+      if (status === 401) {
+        await expect(alert).toContainText("Connexion requise");
+        await expect(
+          alert.getByRole("link", { name: "Aller à la connexion" }),
+        ).toHaveAttribute("href", "/admin/connexion");
+      } else {
+        await expect(alert).toContainText("Accès refusé");
+        await expect(alert.getByRole("link")).toHaveCount(0);
+      }
+      await expect(
+        alert.getByRole("button", { name: "Réessayer" }),
+      ).toHaveCount(0);
+    });
+  }
+
   test(`${route} exposes loading, zero-data and retryable API failure`, async ({
     page,
   }) => {
@@ -297,9 +334,14 @@ test("map uses only real top-pharmacy coordinates, not a synthetic heat layer", 
   await page.goto("/admin");
   const map = page.getByRole("region", { name: "Carte d’activité" });
   await expect(map).toContainText("Pharmacie des Manguiers");
-  await expect(
-    map.getByRole("button", { name: /Pharmacie des Manguiers/ }),
-  ).toBeVisible();
+  await expect(map.getByRole("listitem")).toContainText([
+    "Pharmacie des Manguiers",
+  ]);
+  await expect(map.getByRole("button")).toHaveCount(0);
+  await expect(map.locator(".analytics-map-marker")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
   await expect(map).toContainText(
     /activité cartographique partielle|activité cartographique limitée/i,
   );
@@ -328,7 +370,19 @@ for (const width of [320, 390, 768, 1440]) {
         client: element.clientWidth,
         scroll: element.scrollWidth,
       }));
-      expect(dimensions.scroll).toBe(dimensions.client);
+      const overflowing = await page.locator("*").evaluateAll((elements) =>
+        elements
+          .map((element) => ({
+            tag: element.tagName,
+            className: element.getAttribute("class")?.slice(0, 90),
+            right: Math.round(element.getBoundingClientRect().right),
+          }))
+          .filter((element) => element.right > window.innerWidth + 1)
+          .slice(0, 15),
+      );
+      expect(dimensions.scroll, JSON.stringify(overflowing)).toBe(
+        dimensions.client,
+      );
 
       if (width === 1440) {
         const metrics = await page
@@ -350,10 +404,20 @@ for (const width of [320, 390, 768, 1440]) {
         expect(detail!.y).toBeGreaterThan(metrics!.y);
       }
 
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+      });
       const path = testInfo.outputPath(
+        "visual-evidence",
         `${route === "/admin" ? "admin-dashboard" : "admin-data-quality"}-${width}.png`,
       );
-      await page.screenshot({ path, fullPage: true, animations: "disabled" });
+      await mkdir(dirname(path), { recursive: true });
+      await page.screenshot({
+        path,
+        fullPage: true,
+        animations: "disabled",
+        caret: "hide",
+      });
       await testInfo.attach(`analytics-${route}-${width}`, {
         path,
         contentType: "image/png",

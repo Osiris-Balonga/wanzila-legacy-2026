@@ -1,6 +1,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { LogOut } from "lucide-react";
 import { FirstAidKitIcon } from "@phosphor-icons/react/FirstAidKit";
+import { SealCheckIcon } from "@phosphor-icons/react/SealCheck";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { Icon, type IconName } from "../components/Icon";
 import { EmptyState } from "../components/EmptyState";
@@ -8,6 +9,7 @@ import {
   AdminConnection,
   AdminPharmacyDirectory,
 } from "../features/admin-pharmacy/AdminPharmacyDirectory";
+import { AdminAnalyticsRoute } from "../features/admin-dashboard/AdminAnalyticsRoute";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +71,11 @@ function Navigation({
             <SquaresFourIcon aria-hidden="true" weight="fill" />
           ) : item.icon === "pharmacy" ? (
             <FirstAidKitIcon aria-hidden="true" weight="fill" />
+          ) : item.href === "/admin/qualite" ? (
+            <SealCheckIcon
+              aria-hidden="true"
+              weight={isCurrentRoute(item.href, pathname) ? "fill" : "regular"}
+            />
           ) : (
             <Icon name={item.icon} />
           )}
@@ -209,6 +216,10 @@ export function AdminShell({ pathname }: AdminShellProps) {
       <main className="admin-main" id="admin-content">
         {isPharmacyRoute ? (
           <AdminPharmacyDirectory pathname={pathname} />
+        ) : pathname === "/admin" || pathname === "/admin/qualite" ? (
+          <AdminAnalyticsRoute
+            view={pathname === "/admin" ? "dashboard" : "quality"}
+          />
         ) : (
           <>
             <div className="page-heading">
