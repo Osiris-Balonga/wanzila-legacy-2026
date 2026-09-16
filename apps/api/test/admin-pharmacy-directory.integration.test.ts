@@ -477,7 +477,10 @@ describe.runIf(runMariaDbTests)(
       ]) {
         const response = await app.inject({
           ...request,
-          headers: { ...contentTypeHeaders(), origin: WEB_ORIGIN },
+          headers: {
+            ...("payload" in request ? contentTypeHeaders() : {}),
+            origin: WEB_ORIGIN,
+          },
         });
         expect(response.statusCode).toBe(401);
         expect(adminPharmacyErrorSchema.parse(response.json()).error.code).toBe(
@@ -509,7 +512,7 @@ describe.runIf(runMariaDbTests)(
           const response = await app.inject({
             ...request,
             headers: {
-              ...contentTypeHeaders(),
+              ...("payload" in request ? contentTypeHeaders() : {}),
               cookie: administratorCookie,
               ...(origin === undefined ? {} : { origin }),
             },
