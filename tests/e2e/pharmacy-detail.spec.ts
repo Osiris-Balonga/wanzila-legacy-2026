@@ -103,8 +103,19 @@ test("detail-to-call is explicit, keyboard reachable and tracked", async ({
   await expect(
     page.getByRole("link", { name: "Retour à la carte" }),
   ).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Appeler" })).toBeFocused();
+  for (const control of [
+    page.getByRole("button", { name: "Lancer la recherche" }),
+    page.getByRole("searchbox", {
+      name: "Rechercher une pharmacie, un quartier",
+    }),
+    page.getByRole("link", { name: "Ouvertes maintenant" }),
+    page.getByRole("link", { name: "Quartier : Poto-Poto" }),
+    page.getByRole("link", { name: "Arrondissement : Poto-Poto" }),
+    page.getByRole("link", { name: "Appeler" }),
+  ]) {
+    await page.keyboard.press("Tab");
+    await expect(control).toBeFocused();
+  }
   await page.getByRole("link", { name: "Appeler" }).click();
   await expect
     .poll(() => events.map((event) => event.name))
@@ -273,4 +284,91 @@ test("unknown source is uncertain even with an active duty period", async ({
     page.getByText(/fraîcheur de la source inconnue/i),
   ).toBeVisible();
   await expect(page.getByText("De garde actuellement")).toHaveCount(0);
+});
+
+test("map header search and chips hand off to real discovery query and filters", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/pharmacies?**", (route) =>
+    route.fulfill({
+      json: {
+        data: [pharmacy],
+        pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+      },
+    }),
+  );
+  await page.goto(`/pharmacies/${id}`);
+  const search = page.getByRole("searchbox", {
+    name: "Rechercher une pharmacie, un quartier",
+  });
+  await search.fill("  Jagger  ");
+  const searchRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes("/api/v1/pharmacies?") &&
+      new URL(request.url()).searchParams.get("q") === "Jagger",
+  );
+  await search.press("Enter");
+  await searchRequest;
+  await expect(page).toHaveURL(/\/\?q=Jagger#map$/);
+  await expect(
+    page.getByRole("region", { name: "Carte des pharmacies" }),
+  ).toBeVisible();
+
+  await page.goto(`/pharmacies/${id}`);
+  const districtRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes("/api/v1/pharmacies?") &&
+      new URL(request.url()).searchParams.get("district") === "Poto-Poto",
+  );
+  await page.getByRole("link", { name: "Quartier : Poto-Poto" }).click();
+  await districtRequest;
+  await expect(page).toHaveURL(/\/\?district=Poto-Poto#map$/);
+  await expect(
+    page.getByRole("region", { name: "Carte des pharmacies" }),
+  ).toBeVisible();
+
+  await page.goto(`/pharmacies/${id}`);
+  const arrondissementRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes("/api/v1/pharmacies?") &&
+      new URL(request.url()).searchParams.get("arrondissement") === "Poto-Poto",
+  );
+  await page.getByRole("link", { name: "Arrondissement : Poto-Poto" }).click();
+  await arrondissementRequest;
+  await expect(page).toHaveURL(/\/\?arrondissement=Poto-Poto#map$/);
+
+  await page.goto(`/pharmacies/${id}`);
+  await page.getByRole("link", { name: "Ouvertes maintenant" }).click();
+  await expect(page).toHaveURL(/\/#map$/);
+});
+
+test("the selected point keeps the API name visible and the lower actions clear the fixed nav", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(`/pharmacies/${id}`);
+  await expect(page.locator(".pharmacy-detail-map__label")).toHaveText(
+    pharmacy.name,
+  );
+  await expect(page.locator(".pharmacy-detail-map__label")).toBeVisible();
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  );
+  const copy = page.getByRole("button", { name: "Copier les coordonnées" });
+  const nav = page.getByRole("navigation", { name: "Navigation publique" });
+  const copyBox = await copy.boundingBox();
+  const navBox = await nav.boundingBox();
+  expect(copyBox && navBox && copyBox.y + copyBox.height <= navBox.y).toBe(
+    true,
+  );
+  await copy.click({ trial: true });
+  await page.screenshot({
+    path: testInfo.outputPath("detail-390-bottom.png"),
+    animations: "disabled",
+  });
+  await copy.click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Coordonnées copiées" }),
+  ).toBeVisible();
 });

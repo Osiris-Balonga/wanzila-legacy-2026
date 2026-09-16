@@ -4,6 +4,7 @@ import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { MapPinIcon } from "@phosphor-icons/react/MapPin";
 import {
   Bookmark,
+  ChevronDown,
   ChevronLeft,
   CircleAlert,
   Clipboard,
@@ -11,13 +12,22 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  Search,
   ShieldCheck,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createAnalyticsTransport } from "@/analytics/transport";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -47,6 +57,91 @@ function formatPhone(value: string): string {
 
 function dialablePhone(phone: string | undefined): phone is string {
   return Boolean(phone && /^[+\d\s().-]+$/.test(phone) && /\d/.test(phone));
+}
+
+function discoveryMapHref(
+  field?: "district" | "arrondissement",
+  value?: string,
+) {
+  const normalized = value?.trim();
+  if (!field || !normalized) return "/#map";
+  return `/?${new URLSearchParams({ [field]: normalized }).toString()}#map`;
+}
+
+function PharmacyDetailMapControls({ pharmacy }: { pharmacy: PublicPharmacy }) {
+  const [query, setQuery] = useState("");
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalized = query.trim();
+    const search = normalized
+      ? `?${new URLSearchParams({ q: normalized }).toString()}`
+      : "";
+    window.location.assign(`/${search}#map`);
+  }
+
+  return (
+    <div className="pharmacy-detail-map-controls">
+      <form
+        className="pharmacy-detail-map-search"
+        onSubmit={submit}
+        role="search"
+      >
+        <Button
+          aria-label="Lancer la recherche"
+          size="icon"
+          type="submit"
+          variant="ghost"
+        >
+          <Search aria-hidden="true" />
+        </Button>
+        <Input
+          aria-label="Rechercher une pharmacie, un quartier"
+          maxLength={180}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Rechercher une pharmacie, un quartier..."
+          type="search"
+          value={query}
+        />
+      </form>
+      <nav
+        aria-label="Filtres sur la carte"
+        className="pharmacy-detail-map-filters"
+      >
+        <a className="pharmacy-detail-map-filters__active" href="/#map">
+          <ClockIcon aria-hidden="true" weight="fill" />
+          Ouvertes maintenant
+        </a>
+        <a
+          aria-label={
+            pharmacy.address.district
+              ? `Quartier : ${pharmacy.address.district}`
+              : "Quartier"
+          }
+          href={discoveryMapHref("district", pharmacy.address.district)}
+        >
+          <MapPinIcon aria-hidden="true" weight="fill" />
+          Quartier
+          <ChevronDown aria-hidden="true" />
+        </a>
+        <a
+          aria-label={
+            pharmacy.address.arrondissement
+              ? `Arrondissement : ${pharmacy.address.arrondissement}`
+              : "Arrondissement"
+          }
+          href={discoveryMapHref(
+            "arrondissement",
+            pharmacy.address.arrondissement,
+          )}
+        >
+          <BuildingsIcon aria-hidden="true" weight="fill" />
+          Arrondissement
+          <ChevronDown aria-hidden="true" />
+        </a>
+      </nav>
+    </div>
+  );
 }
 
 type DutyView = { label: string; detail: string; kind: "fresh" | "uncertain" };
@@ -155,6 +250,7 @@ function PharmacyDetailContent({
         <a className="pharmacy-detail-back" href="/#map">
           <ChevronLeft aria-hidden="true" /> Retour à la carte
         </a>
+        <PharmacyDetailMapControls pharmacy={pharmacy} />
       </section>
 
       <section

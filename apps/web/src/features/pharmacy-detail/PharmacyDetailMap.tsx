@@ -54,13 +54,32 @@ export function PharmacyDetailMap({
           new maplibre.AttributionControl({ compact: false }),
           "bottom-left",
         );
-        map.once("load", () => setStatus("ready"));
+        map.once("load", () => {
+          map?.easeTo({
+            center: [coordinates.longitude, coordinates.latitude],
+            offset: [0, 55],
+            duration: 0,
+          });
+          setStatus("ready");
+        });
         map.on("error", () => setStatus("error"));
+        const markerElement = document.createElement("div");
+        markerElement.className = "pharmacy-detail-map__marker";
         const pin = document.createElement("span");
         pin.className = "pharmacy-detail-map__pin";
         pin.setAttribute("aria-hidden", "true");
-        pin.textContent = "+";
-        marker = new maplibre.Marker({ element: pin, anchor: "bottom" })
+        const cross = document.createElement("span");
+        cross.className = "pharmacy-detail-map__cross";
+        cross.textContent = "+";
+        pin.append(cross);
+        const label = document.createElement("span");
+        label.className = "pharmacy-detail-map__label";
+        label.textContent = name;
+        markerElement.append(pin, label);
+        marker = new maplibre.Marker({
+          element: markerElement,
+          anchor: "bottom",
+        })
           .setLngLat([coordinates.longitude, coordinates.latitude])
           .addTo(map);
         observer = new ResizeObserver(() => map?.resize());
@@ -75,7 +94,7 @@ export function PharmacyDetailMap({
       marker?.remove();
       map?.remove();
     };
-  }, [coordinates.latitude, coordinates.longitude]);
+  }, [coordinates.latitude, coordinates.longitude, name]);
 
   return (
     <section
