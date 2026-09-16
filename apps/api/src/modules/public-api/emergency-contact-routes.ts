@@ -12,10 +12,21 @@ export function registerEmergencyContactRoutes(
       const contacts = await prisma.emergencyContact.findMany({
         where: { status: "PUBLISHED" },
         orderBy: [{ position: "asc" }, { id: "asc" }],
-        select: { id: true, label: true, phone: true, position: true },
+        select: {
+          id: true,
+          label: true,
+          phone: true,
+          position: true,
+          updatedAt: true,
+        },
       });
 
-      return { data: contacts };
+      return {
+        data: contacts.map((contact) => ({
+          ...contact,
+          updatedAt: contact.updatedAt.toISOString(),
+        })),
+      };
     },
   );
 }
