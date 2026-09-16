@@ -181,6 +181,15 @@
   padding-bottom: var(--space-3);
 }
 
+.discovery-result[data-selected="true"] {
+  background: var(--primary-soft);
+  border-radius: 0.75rem;
+}
+
+.discovery-result > [data-slot="button"] {
+  margin-left: 3.25rem;
+}
+
 .discovery-result:last-child {
   border-bottom: 0;
   padding-bottom: 0;

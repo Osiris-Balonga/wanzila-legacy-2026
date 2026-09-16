@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock3,
   MapPin,
+  Map as MapIcon,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -32,6 +33,8 @@ import {
   serializeDiscoveryUrlState,
 } from "./discovery-url-state";
 import type { DiscoveryLoadState, DiscoveryUrlState } from "./types";
+import { DiscoveryMapPage } from "./map/DiscoveryMapPage";
+import { toPharmacyFeatures } from "./map/pharmacy-map-features";
 import "./discovery.css";
 
 type DiscoveryPageProps = {
@@ -44,6 +47,9 @@ type DiscoveryPageProps = {
     value: string,
   ) => void;
   onPageChange?: (page: number) => void;
+  onMap?: () => void;
+  selectedId?: string | null;
+  onSelectMap?: (id: string) => void;
 };
 
 const districts = ["Plateau", "Bacongo", "Moungali"];
@@ -73,10 +79,18 @@ function freshnessLabel(pharmacy: ActivePublicPharmacy): string {
   }
 }
 
-function PharmacyResult({ pharmacy }: { pharmacy: ActivePublicPharmacy }) {
+function PharmacyResult({
+  pharmacy,
+  selected,
+  onShowOnMap,
+}: {
+  pharmacy: ActivePublicPharmacy;
+  selected: boolean;
+  onShowOnMap?: (() => void) | undefined;
+}) {
   const source = pharmacy.currentDuty.source;
   return (
-    <li className="discovery-result">
+    <li className="discovery-result" data-selected={selected}>
       <a href={`/pharmacies/${pharmacy.id}`}>
         <div className="discovery-result__heading">
           <span className="discovery-result__icon" aria-hidden="true">
@@ -106,6 +120,11 @@ function PharmacyResult({ pharmacy }: { pharmacy: ActivePublicPharmacy }) {
           {source ? ` · ${source.name}` : ""}
         </span>
       </a>
+      {onShowOnMap ? (
+        <Button onClick={onShowOnMap} size="sm" type="button" variant="ghost">
+          <MapIcon aria-hidden="true" /> Voir sur la carte
+        </Button>
+      ) : null}
     </li>
   );
 }
@@ -131,6 +150,9 @@ export function DiscoveryPage({
   onSearchSubmit,
   onFilterChange,
   onPageChange,
+  onMap,
+  selectedId,
+  onSelectMap,
 }: DiscoveryPageProps) {
   const [query, setQuery] = useState(filters.q ?? "");
   const response = getResponse(state);
@@ -223,6 +245,16 @@ export function DiscoveryPage({
             </select>
           </div>
         </div>
+        {onMap ? (
+          <Button
+            className="discovery-page__map-link"
+            onClick={onMap}
+            type="button"
+            variant="outline"
+          >
+            <MapIcon aria-hidden="true" /> Carte
+          </Button>
+        ) : null}
       </section>
 
       <section
@@ -296,7 +328,17 @@ export function DiscoveryPage({
             className="discovery-result-list"
           >
             {response.data.map((pharmacy) => (
-              <PharmacyResult key={pharmacy.id} pharmacy={pharmacy} />
+              <PharmacyResult
+                key={pharmacy.id}
+                onShowOnMap={
+                  toPharmacyFeatures([pharmacy]).features.length > 0 &&
+                  onSelectMap
+                    ? () => onSelectMap(pharmacy.id)
+                    : undefined
+                }
+                pharmacy={pharmacy}
+                selected={pharmacy.id === selectedId}
+              />
             ))}
           </ul>
         ) : null}
@@ -380,6 +422,10 @@ export function DiscoveryRoute() {
     [],
   );
   const [filters, setFilters] = useState<DiscoveryUrlState>(initialFilters);
+  const [mode, setMode] = useState<"list" | "map">(
+    globalThis.location.hash === "#map" ? "map" : "list",
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [state, setState] = useState<
     Exclude<DiscoveryLoadState, { status: "idle" }>
   >({
@@ -420,7 +466,7 @@ export function DiscoveryRoute() {
       globalThis.history.pushState(
         {},
         "",
-        `${globalThis.location.pathname}${search}`,
+        `${globalThis.location.pathname}${search}${globalThis.location.hash}`,
       );
       setFilters(nextFilters);
       void load(nextFilters);
@@ -439,61 +485,99 @@ export function DiscoveryRoute() {
   useEffect(() => {
     const restoreFromHistory = () => {
       const restored = parseDiscoveryUrlState(globalThis.location.search);
+      setMode(globalThis.location.hash === "#map" ? "map" : "list");
       setFilters(restored);
       void load(restored);
     };
     globalThis.addEventListener("popstate", restoreFromHistory);
-    return () => globalThis.removeEventListener("popstate", restoreFromHistory);
+    globalThis.addEventListener("hashchange", restoreFromHistory);
+    return () => {
+      globalThis.removeEventListener("popstate", restoreFromHistory);
+      globalThis.removeEventListener("hashchange", restoreFromHistory);
+    };
   }, [load]);
 
-  return (
+  const showMode = (nextMode: "list" | "map") => {
+    globalThis.history.pushState(
+      {},
+      "",
+      `${globalThis.location.pathname}${globalThis.location.search}${nextMode === "map" ? "#map" : ""}`,
+    );
+    setMode(nextMode);
+  };
+  const onRetry = () => void load(filters);
+  const onSearchSubmit = (query: string) => {
+    analytics.submittedSearch(query);
+    const filtersWithoutQuery = { ...filters };
+    delete filtersWithoutQuery.q;
+    const normalizedQuery = query.trim();
+    navigate({
+      ...filtersWithoutQuery,
+      ...(normalizedQuery === "" ? {} : { q: normalizedQuery }),
+      page: 1,
+    });
+  };
+  const onFilterChange = (
+    field: "district" | "arrondissement",
+    value: string,
+  ) => {
+    const nextFilters =
+      field === "district"
+        ? (() => {
+            const withoutDistrict = { ...filters };
+            delete withoutDistrict.district;
+            return {
+              ...withoutDistrict,
+              ...(value === "" ? {} : { district: value }),
+              page: 1,
+            };
+          })()
+        : (() => {
+            const withoutArrondissement = { ...filters };
+            delete withoutArrondissement.arrondissement;
+            return {
+              ...withoutArrondissement,
+              ...(value === "" ? {} : { arrondissement: value }),
+              page: 1,
+            };
+          })();
+    analytics.appliedFilters({
+      ...(nextFilters.district === undefined
+        ? {}
+        : { district: nextFilters.district }),
+      ...(nextFilters.arrondissement === undefined
+        ? {}
+        : { arrondissement: nextFilters.arrondissement }),
+    });
+    navigate(nextFilters);
+  };
+
+  return mode === "map" ? (
+    <DiscoveryMapPage
+      filters={filters}
+      onClearSelection={() => setSelectedId(null)}
+      onFilterChange={onFilterChange}
+      onList={() => showMode("list")}
+      onRetry={onRetry}
+      onSearchSubmit={onSearchSubmit}
+      onSelect={setSelectedId}
+      selectedId={selectedId}
+      state={state}
+    />
+  ) : (
     <DiscoveryPage
       filters={filters}
-      state={state}
-      onRetry={() => void load(filters)}
-      onSearchSubmit={(query) => {
-        analytics.submittedSearch(query);
-        const filtersWithoutQuery = { ...filters };
-        delete filtersWithoutQuery.q;
-        const normalizedQuery = query.trim();
-        navigate({
-          ...filtersWithoutQuery,
-          ...(normalizedQuery === "" ? {} : { q: normalizedQuery }),
-          page: 1,
-        });
+      onFilterChange={onFilterChange}
+      onMap={() => showMode("map")}
+      onSelectMap={(id) => {
+        setSelectedId(id);
+        showMode("map");
       }}
-      onFilterChange={(field, value) => {
-        const nextFilters =
-          field === "district"
-            ? (() => {
-                const withoutDistrict = { ...filters };
-                delete withoutDistrict.district;
-                return {
-                  ...withoutDistrict,
-                  ...(value === "" ? {} : { district: value }),
-                  page: 1,
-                };
-              })()
-            : (() => {
-                const withoutArrondissement = { ...filters };
-                delete withoutArrondissement.arrondissement;
-                return {
-                  ...withoutArrondissement,
-                  ...(value === "" ? {} : { arrondissement: value }),
-                  page: 1,
-                };
-              })();
-        analytics.appliedFilters({
-          ...(nextFilters.district === undefined
-            ? {}
-            : { district: nextFilters.district }),
-          ...(nextFilters.arrondissement === undefined
-            ? {}
-            : { arrondissement: nextFilters.arrondissement }),
-        });
-        navigate(nextFilters);
-      }}
+      onRetry={onRetry}
+      onSearchSubmit={onSearchSubmit}
       onPageChange={(page) => navigate({ ...filters, page })}
+      state={state}
+      selectedId={selectedId}
     />
   );
 }
