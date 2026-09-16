@@ -1,5 +1,7 @@
 import type { AdminPharmacy } from "@wanzila/contracts";
+import { MoreHorizontal, Phone, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -51,6 +53,7 @@ export function AdminPharmacyList({
               <TableHead>Quartier</TableHead>
               <TableHead>Arrondissement</TableHead>
               <TableHead>Téléphone</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Dernière mise à jour</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Actions</TableHead>
@@ -60,14 +63,37 @@ export function AdminPharmacyList({
             {pharmacies.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
-                  <strong>{item.name}</strong>
-                  <span className="pharmacy-directory-list__subline">
-                    {item.address.line}
+                  <span className="pharmacy-directory-list__identity">
+                    <span
+                      className="pharmacy-directory-list__photo"
+                      aria-hidden="true"
+                    >
+                      <Store />
+                    </span>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <span className="pharmacy-directory-list__subline">
+                        {item.address.line}
+                      </span>
+                    </span>
                   </span>
                 </TableCell>
                 <TableCell>{item.address.district}</TableCell>
                 <TableCell>{item.address.arrondissement}</TableCell>
-                <TableCell>{item.phone ?? "—"}</TableCell>
+                <TableCell>
+                  {item.phone ? (
+                    <span className="pharmacy-directory-list__phone">
+                      <Phone aria-hidden="true" /> {item.phone}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span className="pharmacy-directory-list__source">
+                    Non renseignée
+                  </span>
+                </TableCell>
                 <TableCell>
                   <time dateTime={item.updatedAt}>
                     {new Intl.DateTimeFormat("fr-CG", {
@@ -79,12 +105,23 @@ export function AdminPharmacyList({
                   <PharmacyStatus status={item.status} />
                 </TableCell>
                 <TableCell>
-                  <a
-                    className="pharmacy-directory-list__action"
-                    href={`/admin/pharmacies/${item.id}`}
-                  >
-                    Voir <span className="sr-only">{item.name}</span>
-                  </a>
+                  <span className="pharmacy-directory-list__actions">
+                    <a
+                      className="pharmacy-directory-list__action"
+                      href={`/admin/pharmacies/${item.id}`}
+                    >
+                      Voir <span className="sr-only">{item.name}</span>
+                    </a>
+                    <Button
+                      aria-label="Autres actions"
+                      disabled
+                      size="icon"
+                      title="Autres actions indisponibles"
+                      variant="outline"
+                    >
+                      <MoreHorizontal aria-hidden="true" />
+                    </Button>
+                  </span>
                 </TableCell>
               </TableRow>
             ))}
