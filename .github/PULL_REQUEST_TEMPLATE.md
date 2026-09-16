@@ -22,3 +22,17 @@ Closes #
 - [ ] The diff contains only work required by the linked issue.
 
 <!-- Include screenshots for visual changes and call out migrations, compatibility concerns, or follow-up work. -->
+
+## Visual evidence (required for web UI changes)
+
+Reference image: <!-- Link each owning docs/design/mockups PNG. -->
+
+Implementation capture: <!-- Link actual browser capture or Browser CI visual-evidence artifact; give commit/width. -->
+
+Annotated differences: <!-- Name each visible discrepancy. State "None after comparison" only if checked. -->
+
+Missing data/assets: <!-- Name dependencies and issue numbers, or state "None after comparison". -->
+
+Responsive and interaction proof: <!-- 320/390/768/1440, keyboard, focus, overflow, and relevant states. -->
+
+Visual approval: Pending <!-- Replace with reviewer + approved commit only after side-by-side review. -->

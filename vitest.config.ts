@@ -9,6 +9,10 @@ export default defineConfig({
   },
   test: {
     coverage: { provider: "v8", reporter: ["text", "json-summary"] },
-    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    include: [
+      "apps/**/*.test.ts",
+      "packages/**/*.test.ts",
+      "tests/**/*.test.ts",
+    ],
   },
 });
