@@ -23,4 +23,6 @@ Status: **review candidate, not an approved visual baseline**. This pilot lives 
 
 The local style is [`apps/web/public/maps/wanzila-style.json`](../../apps/web/public/maps/wanzila-style.json). It is the only map-style source in the application and may be replaced through `VITE_MAP_STYLE_URL`. MapLibre's worker is explicitly bundled through Vite's `?worker&url`; without that, pins appeared but vector tiles never loaded. OpenFreeMap tiles and OpenStreetMap data require visible attribution, retained in the MapLibre control. The map is not drawn from the reference PNG.
 
+The comparison capture intentionally contains two fixture pharmacies, while the reference illustration shows more pins. Pin count and position are data-dependent and must not be copied from the artwork into production data.
+
 Approval still requires human side-by-side review of the 390 px normal and selected captures, plus a decision on imagery, user distance, itinerary and saved pharmacies. Do not merge this pilot into `dev` on structural tests alone.
