@@ -8,18 +8,8 @@ import {
 } from "@wanzila/contracts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { AdminPharmacyList } from "./AdminPharmacyList";
+import { AdminPharmacyDetail } from "./AdminPharmacyDetail";
 
 const api = "/api/v1";
 
@@ -274,142 +264,6 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
   );
 }
 
-function PharmacyDetail({ id }: { id: string }) {
-  const [pharmacy, setPharmacy] = useState<AdminPharmacy | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    void request(`/admin/pharmacies/${id}`)
-      .then(async (response) => {
-        if (response.status === 401) return navigate("/admin/connexion");
-        if (!response.ok) return setError("Pharmacie introuvable.");
-        setPharmacy(
-          adminPharmacyResponseSchema.parse(await response.json()).data,
-        );
-      })
-      .catch(() => setError("Impossible de charger la pharmacie."));
-  }, [id]);
-  const transition = async (action: "publish" | "archive") => {
-    try {
-      const response = await request(`/admin/pharmacies/${id}/${action}`, {
-        method: "POST",
-      });
-      if (response.status === 401) return navigate("/admin/connexion");
-      if (!response.ok)
-        return setError(
-          response.status === 409
-            ? "Cette transition n’est plus possible."
-            : "Une erreur est survenue.",
-        );
-      setPharmacy(
-        adminPharmacyResponseSchema.parse(await response.json()).data,
-      );
-    } catch {
-      setError("Impossible de modifier le statut. Réessayez.");
-    }
-  };
-  if (error) return <ErrorNotice>{error}</ErrorNotice>;
-  if (!pharmacy)
-    return (
-      <p aria-label="Chargement de la pharmacie" role="status">
-        Chargement…
-      </p>
-    );
-  return (
-    <section className="pharmacy-detail">
-      <a className="pharmacy-detail__back" href="/admin/pharmacies">
-        ← Retour aux pharmacies
-      </a>
-      <div className="page-heading">
-        <div>
-          <p className="overline">Fiche pharmacie</p>
-          <h1>{pharmacy.name}</h1>
-          <p>Détails et informations de la pharmacie.</p>
-        </div>
-        <span className={`status status--${pharmacy.status.toLowerCase()}`}>
-          {pharmacy.status === "PUBLISHED"
-            ? "Publiée"
-            : pharmacy.status === "DRAFT"
-              ? "Brouillon"
-              : "Archivée"}
-        </span>
-      </div>
-      <div className="detail-actions">
-        <Button asChild variant="outline">
-          <a href={`/admin/pharmacies/${id}/modifier`}>Modifier</a>
-        </Button>
-        {pharmacy.status === "DRAFT" && (
-          <Button onClick={() => void transition("publish")}>Publier</Button>
-        )}
-        {pharmacy.status !== "ARCHIVED" && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">Archiver</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Archiver cette pharmacie ?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Elle ne sera plus visible dans l’annuaire public.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annuler</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={() => void transition("archive")}
-                >
-                  Archiver
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-      </div>
-      <h2>Informations</h2>
-      <dl className="detail-grid">
-        <div>
-          <dt>Nom</dt>
-          <dd>{pharmacy.name}</dd>
-        </div>
-        <div>
-          <dt>Adresse</dt>
-          <dd>{pharmacy.address.line}</dd>
-        </div>
-        <div>
-          <dt>Quartier</dt>
-          <dd>{pharmacy.address.district}</dd>
-        </div>
-        <div>
-          <dt>Arrondissement</dt>
-          <dd>{pharmacy.address.arrondissement}</dd>
-        </div>
-        <div>
-          <dt>Téléphone</dt>
-          <dd>
-            {pharmacy.phone ? (
-              <a href={`tel:${pharmacy.phone.replace(/[^+\d]/g, "")}`}>
-                {pharmacy.phone}
-              </a>
-            ) : (
-              "Non renseigné"
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Coordonnées</dt>
-          <dd>
-            {pharmacy.coordinates.latitude}, {pharmacy.coordinates.longitude}
-          </dd>
-        </div>
-        <div>
-          <dt>Dernière modification</dt>
-          <dd>{new Date(pharmacy.updatedAt).toLocaleDateString("fr-CG")}</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
 function PharmacyEdit({ id }: { id: string }) {
   const [pharmacy, setPharmacy] = useState<AdminPharmacy | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -509,7 +363,8 @@ export function AdminPharmacyDirectory({ pathname }: { pathname: string }) {
         <PharmacyForm />
       </>
     );
-  if (segment && segment !== "modifier") return <PharmacyDetail id={segment} />;
+  if (segment && segment !== "modifier")
+    return <AdminPharmacyDetail id={segment} />;
   return <PharmacyDirectoryList />;
 }
 
