@@ -6,6 +6,10 @@ const text = z.string().trim().min(1);
 const timestamp = z.string().datetime({ offset: true });
 const page = z.coerce.number().int().min(1).max(10_000).default(1);
 const pageSize = z.coerce.number().int().min(1).max(50).default(20);
+const directorySearch = z
+  .string()
+  .transform((value) => value.trim().replace(/\s+/g, " "))
+  .pipe(z.string().min(1).max(180));
 const pagination = z
   .object({
     page: z.number().int().positive(),
@@ -118,6 +122,7 @@ export const adminDutyListQuerySchema = z
   .object({
     page,
     pageSize,
+    q: directorySearch.optional(),
     pharmacyId: id.optional(),
     sourceId: id.optional(),
     status: adminDutyReviewStatusSchema.optional(),
@@ -139,6 +144,27 @@ export const adminDutyListResponseSchema = z
   .object({
     data: z.array(adminDutySchema),
     pagination,
+  })
+  .strict();
+
+export const adminDutySummaryQuerySchema = z.object({}).strict();
+export const adminDutySummaryResponseSchema = z
+  .object({
+    data: z
+      .object({
+        asOf: timestamp,
+        active: z.number().int().nonnegative(),
+        upcoming: z.number().int().nonnegative(),
+        expired: z.number().int().nonnegative(),
+        withoutRecentDuty: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            "Published pharmacies without an APPROVED duty period with startsAt <= asOf and endsAt > asOf minus 30 days; covering exceptions do not remove period presence.",
+          ),
+      })
+      .strict(),
   })
   .strict();
 
