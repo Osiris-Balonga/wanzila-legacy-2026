@@ -82,16 +82,21 @@ export const pharmacyDetailResponseSchema = z.object({
   data: publicPharmacySchema,
 });
 
-export const emergencyContactSchema = z.object({
-  id: publicIdSchema,
-  label: z.string(),
-  phone: z.string(),
-  position: z.number().int().nonnegative(),
-});
+export const emergencyContactSchema = z
+  .object({
+    id: publicIdSchema,
+    label: z.string(),
+    phone: z.string(),
+    position: z.number().int().nonnegative(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
 
-export const emergencyContactsResponseSchema = z.object({
-  data: z.array(emergencyContactSchema),
-});
+export const emergencyContactsResponseSchema = z
+  .object({
+    data: z.array(emergencyContactSchema),
+  })
+  .strict();
 
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type PharmacyListQuery = z.infer<typeof pharmacyListQuerySchema>;

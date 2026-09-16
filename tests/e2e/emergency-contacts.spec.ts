@@ -70,10 +70,9 @@ for (const viewport of viewports) {
     await expect(page.getByRole("link", { name: "Enregistrés" })).toHaveCount(
       0,
     );
-    await expect(page.getByRole("link", { name: "Accueil" })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    await expect(
+      page.getByRole("link", { name: "Accueil", exact: true }),
+    ).toHaveAttribute("href", "/");
     await expect(
       page.getByRole("link", { name: "Contribuer" }),
     ).toHaveAttribute("href", "/contribuer");
