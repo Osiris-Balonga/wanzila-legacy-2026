@@ -16,7 +16,7 @@
     {
       "file": "mobile-map.png",
       "route": "/",
-      "routeStatus": "implemented-without-reference-regions",
+      "routeStatus": "pilot-with-reference-regions",
       "ownerIssue": 22,
       "fixture": "public-active",
       "requiredRegions": [
@@ -40,7 +40,7 @@
     {
       "file": "mobile-map-selected.png",
       "route": "/",
-      "routeStatus": "implemented-without-reference-regions",
+      "routeStatus": "pilot-with-reference-regions",
       "ownerIssue": 22,
       "fixture": "public-selected",
       "requiredRegions": [

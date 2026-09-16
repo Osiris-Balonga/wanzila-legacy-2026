@@ -94,7 +94,8 @@ test("the mobile map presents reference regions and synchronizes marker/list sel
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/#map");
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/$/);
   await expect(
     page.getByRole("region", { name: "Carte des pharmacies" }),
   ).toBeVisible();
@@ -155,9 +156,17 @@ test("the mobile map presents reference regions and synchronizes marker/list sel
     "tel:+242060001234",
   );
   await page.getByRole("button", { name: "Liste" }).click();
+  await expect(page).toHaveURL(/\/#list$/);
   await expect(
     page.getByRole("list", { name: "Résultats de pharmacies de garde" }),
   ).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(
+    page.getByRole("region", { name: "Carte des pharmacies" }),
+  ).toBeVisible();
+  await page.goForward();
+  await expect(page).toHaveURL(/\/#list$/);
   await expect(
     page.getByRole("listitem").filter({ hasText: "Pharmacie Jagger" }),
   ).toHaveAttribute("data-selected", "true");
@@ -178,14 +187,14 @@ test("the mobile map presents reference regions and synchronizes marker/list sel
     .getByRole("searchbox", { name: "Rechercher une pharmacie, un quartier" })
     .fill("Jagger");
   await page.getByRole("button", { name: "Lancer la recherche" }).click();
-  await expect(page).toHaveURL(/\?q=Jagger.*#map$/);
+  await expect(page).toHaveURL(/\?q=Jagger$/);
   await expect(
     page.getByRole("region", { name: "Carte des pharmacies" }),
   ).toBeVisible();
   await page
     .getByRole("combobox", { name: "Quartier" })
     .selectOption("Bacongo");
-  await expect(page).toHaveURL(/district=Bacongo.*#map$/);
+  await expect(page).toHaveURL(/district=Bacongo$/);
   const dimensions = await page.locator("html").evaluate((element) => ({
     client: element.clientWidth,
     scroll: element.scrollWidth,
@@ -217,7 +226,27 @@ test("map controls remain usable at narrow, tablet and desktop widths", async ({
     expect(dimensions.scroll, `horizontal overflow at ${width}px`).toBe(
       dimensions.client,
     );
+    if (width === 1440 && process.env.WANZILA_LIVE_MAP === "1") {
+      await page.screenshot({ path: capturePath("map-pilot-1440.png") });
+    }
   }
+});
+
+test("a shared Poto-Poto district URL stays visible in map and list filters", async ({
+  page,
+}) => {
+  await page.goto("/?district=Poto-Poto");
+  await expect(
+    page.getByRole("region", { name: "Carte des pharmacies" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Quartier", exact: true }),
+  ).toHaveValue("Poto-Poto");
+  await page.getByRole("button", { name: "Liste" }).click();
+  await expect(page).toHaveURL(/\?district=Poto-Poto#list$/);
+  await expect(
+    page.getByRole("combobox", { name: "Quartier", exact: true }),
+  ).toHaveValue("Poto-Poto");
 });
 
 test("provider failure leaves a useful map-to-list path", async ({ page }) => {

@@ -151,7 +151,9 @@ for (const viewport of viewports) {
   }) => {
     await page.setViewportSize(viewport);
     await mockPharmacyList(page);
-    await page.goto("/?q=Centrale&district=Plateau&arrondissement=Poto-Poto");
+    await page.goto(
+      "/?q=Centrale&district=Plateau&arrondissement=Poto-Poto#list",
+    );
 
     await expect(
       page.getByRole("heading", { name: "Pharmacies de garde" }),
@@ -183,7 +185,7 @@ test("search URL state is shareable, restored through navigation, and keyboard f
 }) => {
   const requests: URL[] = [];
   await mockPharmacyList(page, { onRequest: (url) => requests.push(url) });
-  await page.goto("/?q=Alpha");
+  await page.goto("/?q=Alpha#list");
   const search = page.getByRole("searchbox", {
     name: "Rechercher une pharmacie, un quartier",
   });
@@ -238,7 +240,7 @@ test("discovery flow emits the required analytics through the existing transport
   const requests = await captureAnalytics(page);
   const rawQuery = "  Inconnue  ";
   await mockPharmacyList(page);
-  await page.goto("/");
+  await page.goto("/#list");
 
   await expect(
     page.getByRole("heading", { name: "Pharmacies de garde" }),
@@ -347,7 +349,7 @@ test("pagination updates the URL and #4 request, resets after a filter change, a
     onRequest: (url) => requests.push(url),
     totalPages: 3,
   });
-  await page.goto("/?page=2");
+  await page.goto("/?page=2#list");
 
   const pagination = page.getByRole("navigation", {
     name: "Pagination des résultats",
@@ -365,7 +367,7 @@ test("pagination updates the URL and #4 request, resets after a filter change, a
   });
   await search.fill("Centrale");
   await search.press("Enter");
-  await expect(page).toHaveURL(/\?q=Centrale$/);
+  await expect(page).toHaveURL(/\?q=Centrale#list$/);
   await expect
     .poll(() =>
       requests.some(
@@ -434,7 +436,7 @@ test("retry performs a new pharmacy request and can recover from an API failure"
     }
     await route.fulfill({ json: pharmacyListResponse });
   });
-  await page.goto("/");
+  await page.goto("/#list");
 
   const retry = page.getByRole("button", { name: "Réessayer" });
   await expect(retry).toBeVisible();
