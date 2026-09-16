@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   adminPharmacyListResponseSchema,
   adminPharmacyResponseSchema,
+  createAdminPharmacyRequestSchema,
   type AdminPharmacy,
 } from "@wanzila/contracts";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { AdminPharmacyList } from "./AdminPharmacyList";
 
 const api = "/api/v1";
 
@@ -80,25 +82,23 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
   const [fields, setFields] = useState(() => pharmacyFields(pharmacy));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<keyof Fields, string>>
+  >({});
+  const fieldMessage = (key: keyof Fields) =>
+    fieldErrors[key] ? (
+      <small id={`${key}-error`} className="pharmacy-form__error">
+        {fieldErrors[key]}
+      </small>
+    ) : null;
   const update =
-    (key: keyof Fields) => (event: React.ChangeEvent<HTMLInputElement>) =>
+    (key: keyof Fields) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setFields((old) => ({ ...old, [key]: event.target.value }));
+      setFieldErrors((old) => ({ ...old, [key]: undefined }));
+    };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (pending) return;
-    if (
-      !fields.name ||
-      !fields.line ||
-      !fields.district ||
-      !fields.arrondissement ||
-      !fields.latitude ||
-      !fields.longitude
-    ) {
-      setError("Corrigez les champs obligatoires.");
-      return;
-    }
-    setPending(true);
-    setError(null);
     const payload = {
       name: fields.name,
       address: {
@@ -106,27 +106,73 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
         district: fields.district,
         arrondissement: fields.arrondissement,
       },
-      ...(fields.phone ? { phone: fields.phone } : {}),
+      ...(fields.phone.trim() ? { phone: fields.phone } : {}),
       coordinates: {
-        latitude: Number(fields.latitude),
-        longitude: Number(fields.longitude),
+        latitude: fields.latitude.trim() === "" ? NaN : Number(fields.latitude),
+        longitude:
+          fields.longitude.trim() === "" ? NaN : Number(fields.longitude),
       },
     };
-    const response = await request(
-      pharmacy ? `/admin/pharmacies/${pharmacy.id}` : "/admin/pharmacies",
-      { method: pharmacy ? "PATCH" : "POST", body: JSON.stringify(payload) },
-    );
-    if (!response.ok) {
-      setError(
-        response.status === 409
-          ? "Cette pharmacie existe déjà."
-          : "Corrigez les champs puis réessayez.",
-      );
-      setPending(false);
+    const validated = createAdminPharmacyRequestSchema.safeParse(payload);
+    if (!validated.success) {
+      const nextErrors: Partial<Record<keyof Fields, string>> = {};
+      for (const issue of validated.error.issues) {
+        const key = (
+          issue.path[0] === "address" || issue.path[0] === "coordinates"
+            ? issue.path[1]
+            : issue.path[0]
+        ) as keyof Fields | undefined;
+        if (key && !nextErrors[key]) {
+          nextErrors[key] =
+            key === "phone"
+              ? "Saisissez un numéro de téléphone valide."
+              : key === "latitude" || key === "longitude"
+                ? "Saisissez une coordonnée valide."
+                : "Ce champ est obligatoire ou dépasse la longueur autorisée.";
+        }
+      }
+      setFieldErrors(nextErrors);
+      setError("Corrigez les champs indiqués avant d’enregistrer.");
       return;
     }
-    const saved = adminPharmacyResponseSchema.parse(await response.json()).data;
-    navigate(`/admin/pharmacies/${saved.id}`);
+    setPending(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      const response = await request(
+        pharmacy ? `/admin/pharmacies/${pharmacy.id}` : "/admin/pharmacies",
+        {
+          method: pharmacy ? "PATCH" : "POST",
+          body: JSON.stringify({
+            ...validated.data,
+            ...(pharmacy && !fields.phone.trim() ? { phone: null } : {}),
+          }),
+        },
+      );
+      if (response.status === 401) {
+        navigate("/admin/connexion");
+        return;
+      }
+      if (!response.ok) {
+        setError(
+          response.status === 409
+            ? "Cette pharmacie existe déjà."
+            : response.status === 403
+              ? "Vous n’avez pas l’autorisation requise."
+              : "Impossible d’enregistrer la pharmacie. Réessayez.",
+        );
+        return;
+      }
+      const result = adminPharmacyResponseSchema.safeParse(
+        await response.json(),
+      );
+      if (!result.success) throw new Error("Invalid pharmacy response");
+      navigate(`/admin/pharmacies/${result.data.data.id}`);
+    } catch {
+      setError("Impossible d’enregistrer la pharmacie. Réessayez.");
+    } finally {
+      setPending(false);
+    }
   };
   return (
     <form
@@ -139,45 +185,83 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
         <label>
           <span>Nom de la pharmacie</span>
           <Input
-            aria-invalid={Boolean(error && !fields.name)}
+            aria-invalid={Boolean(fieldErrors.name)}
+            aria-describedby={fieldErrors.name ? "name-error" : undefined}
             value={fields.name}
             onChange={update("name")}
           />
+          {fieldMessage("name")}
         </label>
         <label>
           <span>Téléphone</span>
-          <Input value={fields.phone} onChange={update("phone")} />
+          <Input
+            type="tel"
+            aria-invalid={Boolean(fieldErrors.phone)}
+            aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
+            value={fields.phone}
+            onChange={update("phone")}
+          />
+          {fieldMessage("phone")}
         </label>
         <label className="form-grid__wide">
           <span>Adresse</span>
-          <Input value={fields.line} onChange={update("line")} />
+          <Input
+            aria-invalid={Boolean(fieldErrors.line)}
+            aria-describedby={fieldErrors.line ? "line-error" : undefined}
+            value={fields.line}
+            onChange={update("line")}
+          />
+          {fieldMessage("line")}
         </label>
         <label>
           <span>District</span>
-          <Input value={fields.district} onChange={update("district")} />
+          <Input
+            aria-invalid={Boolean(fieldErrors.district)}
+            aria-describedby={
+              fieldErrors.district ? "district-error" : undefined
+            }
+            value={fields.district}
+            onChange={update("district")}
+          />
+          {fieldMessage("district")}
         </label>
         <label>
           <span>Arrondissement</span>
           <Input
+            aria-invalid={Boolean(fieldErrors.arrondissement)}
+            aria-describedby={
+              fieldErrors.arrondissement ? "arrondissement-error" : undefined
+            }
             value={fields.arrondissement}
             onChange={update("arrondissement")}
           />
+          {fieldMessage("arrondissement")}
         </label>
         <label>
           <span>Latitude</span>
           <Input
+            aria-invalid={Boolean(fieldErrors.latitude)}
+            aria-describedby={
+              fieldErrors.latitude ? "latitude-error" : undefined
+            }
             inputMode="decimal"
             value={fields.latitude}
             onChange={update("latitude")}
           />
+          {fieldMessage("latitude")}
         </label>
         <label>
           <span>Longitude</span>
           <Input
+            aria-invalid={Boolean(fieldErrors.longitude)}
+            aria-describedby={
+              fieldErrors.longitude ? "longitude-error" : undefined
+            }
             inputMode="decimal"
             value={fields.longitude}
             onChange={update("longitude")}
           />
+          {fieldMessage("longitude")}
         </label>
       </div>
       <Button type="submit" disabled={pending} aria-busy={pending}>
@@ -204,16 +288,23 @@ function PharmacyDetail({ id }: { id: string }) {
       .catch(() => setError("Impossible de charger la pharmacie."));
   }, [id]);
   const transition = async (action: "publish" | "archive") => {
-    const response = await request(`/admin/pharmacies/${id}/${action}`, {
-      method: "POST",
-    });
-    if (!response.ok)
-      return setError(
-        response.status === 409
-          ? "Cette transition n’est plus possible."
-          : "Une erreur est survenue.",
+    try {
+      const response = await request(`/admin/pharmacies/${id}/${action}`, {
+        method: "POST",
+      });
+      if (response.status === 401) return navigate("/admin/connexion");
+      if (!response.ok)
+        return setError(
+          response.status === 409
+            ? "Cette transition n’est plus possible."
+            : "Une erreur est survenue.",
+        );
+      setPharmacy(
+        adminPharmacyResponseSchema.parse(await response.json()).data,
       );
-    setPharmacy(adminPharmacyResponseSchema.parse(await response.json()).data);
+    } catch {
+      setError("Impossible de modifier le statut. Réessayez.");
+    }
   };
   if (error) return <ErrorNotice>{error}</ErrorNotice>;
   if (!pharmacy)
@@ -224,13 +315,14 @@ function PharmacyDetail({ id }: { id: string }) {
     );
   return (
     <section className="pharmacy-detail">
+      <a className="pharmacy-detail__back" href="/admin/pharmacies">
+        ← Retour aux pharmacies
+      </a>
       <div className="page-heading">
         <div>
-          <p className="overline">Pharmacie</p>
+          <p className="overline">Fiche pharmacie</p>
           <h1>{pharmacy.name}</h1>
-          <p>
-            {pharmacy.address.line} · {pharmacy.address.district}
-          </p>
+          <p>Détails et informations de la pharmacie.</p>
         </div>
         <span className={`status status--${pharmacy.status.toLowerCase()}`}>
           {pharmacy.status === "PUBLISHED"
@@ -241,9 +333,9 @@ function PharmacyDetail({ id }: { id: string }) {
         </span>
       </div>
       <div className="detail-actions">
-        <a href={`/admin/pharmacies/${id}/modifier`}>
-          <Button variant="outline">Modifier</Button>
-        </a>
+        <Button asChild variant="outline">
+          <a href={`/admin/pharmacies/${id}/modifier`}>Modifier</a>
+        </Button>
         {pharmacy.status === "DRAFT" && (
           <Button onClick={() => void transition("publish")}>Publier</Button>
         )}
@@ -272,20 +364,45 @@ function PharmacyDetail({ id }: { id: string }) {
           </AlertDialog>
         )}
       </div>
+      <h2>Informations</h2>
       <dl className="detail-grid">
+        <div>
+          <dt>Nom</dt>
+          <dd>{pharmacy.name}</dd>
+        </div>
         <div>
           <dt>Adresse</dt>
           <dd>{pharmacy.address.line}</dd>
         </div>
         <div>
-          <dt>Contact</dt>
-          <dd>{pharmacy.phone ?? "Non renseigné"}</dd>
+          <dt>Quartier</dt>
+          <dd>{pharmacy.address.district}</dd>
+        </div>
+        <div>
+          <dt>Arrondissement</dt>
+          <dd>{pharmacy.address.arrondissement}</dd>
+        </div>
+        <div>
+          <dt>Téléphone</dt>
+          <dd>
+            {pharmacy.phone ? (
+              <a href={`tel:${pharmacy.phone.replace(/[^+\d]/g, "")}`}>
+                {pharmacy.phone}
+              </a>
+            ) : (
+              "Non renseigné"
+            )}
+          </dd>
         </div>
         <div>
           <dt>Coordonnées</dt>
           <dd>
             {pharmacy.coordinates.latitude}, {pharmacy.coordinates.longitude}
           </dd>
+        </div>
+        <div>
+          <dt>Dernière modification</dt>
+          <dd>{new Date(pharmacy.updatedAt).toLocaleDateString("fr-CG")}</dd>
         </div>
       </dl>
     </section>
@@ -323,18 +440,24 @@ export function AdminConnection() {
   const [pending, setPending] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
-    const response = await request("/admin/auth/sign-in", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!response.ok) {
-      setError("Identifiants invalides.");
+    try {
+      const response = await request("/admin/auth/sign-in", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) {
+        setError("Identifiants invalides.");
+        return;
+      }
+      navigate("/admin/pharmacies");
+    } catch {
+      setError("Connexion indisponible. Réessayez.");
+    } finally {
       setPending(false);
-      return;
     }
-    navigate("/admin/pharmacies");
   };
   return (
     <main className="admin-connection">
@@ -386,7 +509,12 @@ export function AdminPharmacyDirectory({ pathname }: { pathname: string }) {
       </>
     );
   if (segment && segment !== "modifier") return <PharmacyDetail id={segment} />;
+  return <PharmacyDirectoryList />;
+}
+
+function PharmacyDirectoryList() {
   const [data, setData] = useState<AdminPharmacy[]>([]);
+  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -414,10 +542,12 @@ export function AdminPharmacyDirectory({ pathname }: { pathname: string }) {
     return params.toString();
   }, [appliedFilters]);
   useEffect(() => {
+    let active = true;
     setLoading(true);
     setError(null);
     void request(`/admin/pharmacies?${query}`)
       .then(async (response) => {
+        if (!active) return;
         if (response.status === 401) return navigate("/admin/connexion");
         if (!response.ok) {
           setError(
@@ -430,15 +560,23 @@ export function AdminPharmacyDirectory({ pathname }: { pathname: string }) {
         const result = adminPharmacyListResponseSchema.parse(
           await response.json(),
         );
+        if (!active) return;
         setData(result.data);
+        setTotal(result.pagination.total);
         setTotalPages(result.pagination.totalPages);
       })
-      .catch(() =>
-        setError(
-          "Impossible de charger les pharmacies. Vous pouvez réessayer.",
-        ),
-      )
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (active)
+          setError(
+            "Impossible de charger les pharmacies. Vous pouvez réessayer.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [query, refresh]);
   return (
     <section>
@@ -448,99 +586,93 @@ export function AdminPharmacyDirectory({ pathname }: { pathname: string }) {
           <h1>Pharmacies</h1>
           <p>Gérez les informations et la publication de l’annuaire.</p>
         </div>
-        <a href="/admin/pharmacies/nouvelle">
-          <Button>Ajouter une pharmacie</Button>
-        </a>
-      </div>
-      <div className="pharmacy-filters">
-        <label>
-          Filtrer par nom
-          <Input
-            value={filters.name}
-            onChange={(event) =>
-              setFilters((old) => ({
-                ...old,
-                name: event.target.value,
-                page: 1,
-              }))
-            }
-          />
-        </label>
-        <label>
-          District
-          <select
-            value={filters.district}
-            onChange={(event) =>
-              setFilters((old) => ({
-                ...old,
-                district: event.target.value,
-                page: 1,
-              }))
-            }
-          >
-            <option value="">Tous</option>
-            <option value="Plateau">Plateau</option>
-            <option value="Moukondo">Moukondo</option>
-            <option value="Bacongo">Bacongo</option>
-          </select>
-        </label>
-        <label>
-          Arrondissement
-          <select
-            value={filters.arrondissement}
-            onChange={(event) =>
-              setFilters((old) => ({
-                ...old,
-                arrondissement: event.target.value,
-                page: 1,
-              }))
-            }
-          >
-            <option value="">Tous</option>
-            <option value="Poto-Poto">Poto-Poto</option>
-            <option value="Moungali">Moungali</option>
-            <option value="Bacongo">Bacongo</option>
-          </select>
-        </label>
-        <label>
-          Statut
-          <select
-            value={filters.status}
-            onChange={(event) =>
-              setFilters((old) => ({
-                ...old,
-                status: event.target.value,
-                page: 1,
-              }))
-            }
-          >
-            <option value="">Tous</option>
-            <option value="DRAFT">Brouillon</option>
-            <option value="PUBLISHED">Publiée</option>
-            <option value="ARCHIVED">Archivée</option>
-          </select>
-        </label>
-        <label>
-          Résultats par page
-          <select
-            value={filters.pageSize}
-            onChange={(event) =>
-              setFilters((old) => ({
-                ...old,
-                pageSize: Number(event.target.value),
-                page: 1,
-              }))
-            }
-          >
-            <option value="20">20</option>
-            <option value="50">50</option>
-          </select>
-        </label>
-      </div>
-      <div className="detail-actions">
-        <Button onClick={() => setAppliedFilters(filters)}>
-          Appliquer les filtres
+        <Button asChild>
+          <a href="/admin/pharmacies/nouvelle">Ajouter une pharmacie</a>
         </Button>
+      </div>
+      <div className="pharmacy-directory-toolbar">
+        <div className="pharmacy-filters">
+          <label>
+            Filtrer par nom
+            <Input
+              value={filters.name}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  name: event.target.value,
+                  page: 1,
+                }))
+              }
+            />
+          </label>
+          <label>
+            District
+            <Input
+              placeholder="Tous les districts"
+              value={filters.district}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  district: event.target.value,
+                  page: 1,
+                }))
+              }
+            />
+          </label>
+          <label>
+            Arrondissement
+            <Input
+              placeholder="Tous les arrondissements"
+              value={filters.arrondissement}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  arrondissement: event.target.value,
+                  page: 1,
+                }))
+              }
+            />
+          </label>
+          <label>
+            Statut
+            <select
+              value={filters.status}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  status: event.target.value,
+                  page: 1,
+                }))
+              }
+            >
+              <option value="">Tous</option>
+              <option value="DRAFT">Brouillon</option>
+              <option value="PUBLISHED">Publiée</option>
+              <option value="ARCHIVED">Archivée</option>
+            </select>
+          </label>
+          <label>
+            Résultats par page
+            <select
+              value={filters.pageSize}
+              onChange={(event) =>
+                setFilters((old) => ({
+                  ...old,
+                  pageSize: Number(event.target.value),
+                  page: 1,
+                }))
+              }
+            >
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </div>
+        <div className="detail-actions">
+          <Button onClick={() => setAppliedFilters(filters)}>
+            Appliquer les filtres
+          </Button>
+        </div>
       </div>
       {loading ? (
         <p aria-label="Chargement des pharmacies" role="status">
@@ -559,16 +691,7 @@ export function AdminPharmacyDirectory({ pathname }: { pathname: string }) {
       {!loading &&
         !error &&
         (data.length ? (
-          <div className="pharmacy-list">
-            {data.map((item) => (
-              <a href={`/admin/pharmacies/${item.id}`} key={item.id}>
-                <strong>{item.name}</strong>
-                <span>
-                  {item.address.district} · {item.status}
-                </span>
-              </a>
-            ))}
-          </div>
+          <AdminPharmacyList pharmacies={data} total={total} />
         ) : (
           <p>Aucune pharmacie à afficher</p>
         ))}

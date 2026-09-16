@@ -2,6 +2,9 @@ import { z } from "zod";
 
 const identifierSchema = z.uuid();
 const textSchema = z.string().trim().min(1);
+const phoneSchema = textSchema
+  .max(32)
+  .regex(/^\+?[0-9][0-9 .()-]{5,31}$/, "Invalid phone number");
 const timestampSchema = z.string().datetime({ offset: true });
 
 export const adminPharmacyStatusSchema = z.enum([
@@ -30,7 +33,7 @@ export const adminPharmacySchema = z
     id: identifierSchema,
     name: textSchema.max(180),
     address: adminPharmacyAddressSchema,
-    phone: textSchema.max(32).optional(),
+    phone: phoneSchema.optional(),
     coordinates: adminPharmacyCoordinatesSchema,
     status: adminPharmacyStatusSchema,
     createdAt: timestampSchema,
@@ -57,13 +60,14 @@ export const createAdminPharmacyRequestSchema = z
   .object({
     name: textSchema.max(180),
     address: adminPharmacyAddressSchema,
-    phone: textSchema.max(32).optional(),
+    phone: phoneSchema.optional(),
     coordinates: adminPharmacyCoordinatesSchema,
   })
   .strict();
 
 export const updateAdminPharmacyRequestSchema = createAdminPharmacyRequestSchema
   .partial()
+  .extend({ phone: phoneSchema.nullable().optional() })
   .refine(
     (value) => Object.keys(value).length > 0,
     "At least one pharmacy field is required.",

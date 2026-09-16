@@ -304,6 +304,20 @@ describe.runIf(runMariaDbTests)(
           status: "DRAFT",
         },
       });
+      const cleared = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/pharmacies/${ids.draft}`,
+        headers: {
+          ...contentTypeHeaders(),
+          cookie: administratorCookie,
+          origin: WEB_ORIGIN,
+        },
+        payload: { phone: null },
+      });
+      expect(cleared.statusCode).toBe(200);
+      expect(
+        adminPharmacyResponseSchema.parse(cleared.json()).data.phone,
+      ).toBeUndefined();
     });
 
     it("permits DRAFT publication and DRAFT or PUBLISHED archival", async () => {

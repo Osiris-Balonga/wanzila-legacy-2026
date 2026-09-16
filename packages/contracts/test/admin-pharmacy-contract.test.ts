@@ -41,4 +41,31 @@ describe("admin pharmacy contracts", () => {
       }),
     ).toThrow();
   });
+
+  it("rejects unusable contact numbers and out-of-range coordinates", () => {
+    expect(
+      createAdminPharmacyRequestSchema.safeParse({
+        ...pharmacyInput,
+        phone: "not a telephone",
+      }).success,
+    ).toBe(false);
+    expect(
+      createAdminPharmacyRequestSchema.safeParse({
+        ...pharmacyInput,
+        coordinates: { latitude: 95, longitude: 15.2 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("allows clearing an existing phone without accepting null on create", () => {
+    expect(updateAdminPharmacyRequestSchema.parse({ phone: null })).toEqual({
+      phone: null,
+    });
+    expect(
+      createAdminPharmacyRequestSchema.safeParse({
+        ...pharmacyInput,
+        phone: null,
+      }).success,
+    ).toBe(false);
+  });
 });

@@ -314,9 +314,9 @@ for (const viewport of [
       page.getByRole("heading", { name: "Pharmacies" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Ajouter une pharmacie" }),
+      page.getByRole("link", { name: "Ajouter une pharmacie" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Ajouter une pharmacie" }).click();
+    await page.getByRole("link", { name: "Ajouter une pharmacie" }).click();
     await expect(
       page.getByRole("heading", { name: "Nouvelle pharmacie" }),
     ).toBeVisible();
@@ -335,7 +335,7 @@ for (const viewport of [
       page.getByRole("heading", { name: pharmacy.name }),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Modifier" }).click();
+    await page.getByRole("link", { name: "Modifier" }).click();
     await page.getByLabel("Téléphone").fill("+242060001234");
     await page
       .getByRole("button", { name: "Enregistrer les modifications" })
@@ -373,7 +373,7 @@ for (const viewport of [
     await expect(confirmation).toBeHidden();
     await expect(archive).toBeFocused();
     await page.keyboard.press("Shift+Tab");
-    await expect(page.getByRole("button", { name: "Publier" })).toBeFocused();
+    await expect(page.getByRole("link", { name: "Modifier" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(archive).toBeFocused();
     await page.keyboard.press("Enter");
@@ -392,8 +392,8 @@ test("generates deterministic accessible filter and pagination queries", async (
   await signIn(page);
 
   await page.getByLabel("Filtrer par nom").fill("Nouvelle");
-  await page.getByLabel("District").selectOption("Plateau");
-  await page.getByLabel("Arrondissement").selectOption("Poto-Poto");
+  await page.getByLabel("District").fill("Plateau");
+  await page.getByLabel("Arrondissement").fill("Poto-Poto");
   await page.getByLabel("Statut").selectOption("DRAFT");
   await page.getByLabel("Résultats par page").selectOption("50");
   await page.getByRole("button", { name: "Appliquer les filtres" }).click();
@@ -431,7 +431,14 @@ test("renders loading, empty, forbidden, validation, conflict, and server errors
     page.getByRole("status", { name: "Chargement des pharmacies" }),
   ).toBeVisible();
   state.holdList.resolve();
-  await expect(page.getByText(pharmacy.name)).toBeVisible();
+  await expect(
+    page
+      .locator(
+        ".pharmacy-directory-list__desktop:visible, .pharmacy-directory-list__mobile:visible",
+      )
+      .getByText(pharmacy.name, { exact: true })
+      .first(),
+  ).toBeVisible();
 
   state.listMode = "empty";
   await page.reload();
@@ -450,7 +457,14 @@ test("renders loading, empty, forbidden, validation, conflict, and server errors
   await expect
     .poll(() => state.listRequests.length)
     .toBeGreaterThan(failedRequests);
-  await expect(page.getByText(pharmacy.name)).toBeVisible();
+  await expect(
+    page
+      .locator(
+        ".pharmacy-directory-list__desktop:visible, .pharmacy-directory-list__mobile:visible",
+      )
+      .getByText(pharmacy.name, { exact: true })
+      .first(),
+  ).toBeVisible();
 
   delete state.listMode;
   state.createMode = "validation";
@@ -461,6 +475,21 @@ test("renders loading, empty, forbidden, validation, conflict, and server errors
     "aria-invalid",
     "true",
   );
+
+  await fillPharmacyForm(page);
+  await page.getByLabel("Téléphone").fill("not a telephone");
+  await page.getByLabel("Latitude").fill("95");
+  const beforeInvalidSubmit = state.createRequests;
+  await page.getByRole("button", { name: "Enregistrer le brouillon" }).click();
+  await expect(page.getByLabel("Téléphone")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.getByLabel("Latitude")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(state.createRequests).toBe(beforeInvalidSubmit);
 
   state.createMode = "conflict";
   await fillPharmacyForm(page);
