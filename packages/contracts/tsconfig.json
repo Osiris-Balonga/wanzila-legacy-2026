@@ -6,7 +6,7 @@
     "moduleResolution": "NodeNext",
     "declaration": true,
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": "src"
   },
-  "include": ["src", "test"]
+  "include": ["src"]
 }

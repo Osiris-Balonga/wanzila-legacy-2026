@@ -1,6 +1,10 @@
 import { useRef, useState, type RefObject } from "react";
 import { Icon, type IconName } from "../components/Icon";
 import { EmptyState } from "../components/EmptyState";
+import {
+  AdminConnection,
+  AdminPharmacyDirectory,
+} from "../features/admin-pharmacy/AdminPharmacyDirectory";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,6 +71,12 @@ function Navigation({
 export function AdminShell({ pathname }: AdminShellProps) {
   const [activeTabId, setActiveTabId] = useState("overview");
   const mobileNavigationFirstLinkRef = useRef<HTMLAnchorElement>(null);
+
+  if (pathname === "/admin/connexion") {
+    return <AdminConnection />;
+  }
+
+  const isPharmacyRoute = pathname.startsWith("/admin/pharmacies");
 
   return (
     <div className="admin-shell" data-shell="admin">
@@ -152,61 +162,70 @@ export function AdminShell({ pathname }: AdminShellProps) {
         </div>
       </header>
       <main className="admin-main" id="admin-content">
-        <div className="page-heading">
-          <div>
-            <p className="overline">Administration</p>
-            <h1>Fondation de l’interface</h1>
-            <p>
-              Un cadre de navigation et des composants cohérents pour les
-              futures surfaces.
-            </p>
-          </div>
-          <Badge className="wanzila-badge" variant="secondary">
-            Sans données
-          </Badge>
-        </div>
-        <Tabs onValueChange={setActiveTabId} value={activeTabId}>
-          <TabsList
-            aria-label="Sections de démonstration"
-            className="admin-tabs"
-          >
-            <TabsTrigger
-              tabIndex={activeTabId === "overview" ? 0 : -1}
-              value="overview"
-            >
-              Vue d’ensemble
-            </TabsTrigger>
-            <TabsTrigger
-              tabIndex={activeTabId === "components" ? 0 : -1}
-              value="components"
-            >
-              Composants
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="overview">
-            <Card className="admin-placeholder">
-              <CardContent>
-                <EmptyState icon="dashboard" title="Surface prête à assembler">
-                  Les tableaux, flux et métriques relèvent des issues métier à
-                  venir.
-                </EmptyState>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="components">
-            <Card className="admin-placeholder">
-              <CardContent>
-                <EmptyState
-                  icon="settings"
-                  title="Primitives prêtes à employer"
+        {isPharmacyRoute ? (
+          <AdminPharmacyDirectory pathname={pathname} />
+        ) : (
+          <>
+            <div className="page-heading">
+              <div>
+                <p className="overline">Administration</p>
+                <h1>Fondation de l’interface</h1>
+                <p>
+                  Un cadre de navigation et des composants cohérents pour les
+                  futures surfaces.
+                </p>
+              </div>
+              <Badge className="wanzila-badge" variant="secondary">
+                Sans données
+              </Badge>
+            </div>
+            <Tabs onValueChange={setActiveTabId} value={activeTabId}>
+              <TabsList
+                aria-label="Sections de démonstration"
+                className="admin-tabs"
+              >
+                <TabsTrigger
+                  tabIndex={activeTabId === "overview" ? 0 : -1}
+                  value="overview"
                 >
-                  Les composants partagés sont accessibles aux futures surfaces
-                  sans ajouter de logique métier.
-                </EmptyState>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  Vue d’ensemble
+                </TabsTrigger>
+                <TabsTrigger
+                  tabIndex={activeTabId === "components" ? 0 : -1}
+                  value="components"
+                >
+                  Composants
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="overview">
+                <Card className="admin-placeholder">
+                  <CardContent>
+                    <EmptyState
+                      icon="dashboard"
+                      title="Surface prête à assembler"
+                    >
+                      Les tableaux, flux et métriques relèvent des issues métier
+                      à venir.
+                    </EmptyState>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="components">
+                <Card className="admin-placeholder">
+                  <CardContent>
+                    <EmptyState
+                      icon="settings"
+                      title="Primitives prêtes à employer"
+                    >
+                      Les composants partagés sont accessibles aux futures
+                      surfaces sans ajouter de logique métier.
+                    </EmptyState>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </main>
     </div>
   );
