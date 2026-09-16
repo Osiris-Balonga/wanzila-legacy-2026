@@ -302,6 +302,47 @@ describe.runIf(Boolean(databaseUrl))(
       });
     });
 
+    it("treats SQL LIKE metacharacters as literal search text", async () => {
+      for (const [pharmacyId, name] of [
+        [ids.alpha, "Pharmacie 100% Santé"],
+        [ids.beta, "Pharmacie 100X Santé"],
+        [ids.gamma, "Pharmacie A_B"],
+        [ids.delta, "Pharmacie A7B"],
+        [ids.epsilon, "Pharmacie C\\D"],
+        [ids.zeta, "Pharmacie CD"],
+      ] as const) {
+        await pharmacy(prisma, pharmacyId, name, "Plateau", "Moungali");
+      }
+      const start = new Date("2026-09-17T08:00:00.000Z");
+      const end = new Date("2026-09-17T20:00:00.000Z");
+      for (const [index, pharmacyId] of Object.values(ids).entries()) {
+        await duty(
+          prisma,
+          dutyId(index + 1),
+          pharmacyId,
+          "APPROVED",
+          start,
+          end,
+        );
+      }
+      for (const [term, expectedId] of [
+        ["100%", dutyId(1)],
+        ["A_B", dutyId(3)],
+        ["c\\d", dutyId(5)],
+      ] as const) {
+        const response = await app.inject({
+          method: "GET",
+          url: `/api/v1/admin/duties?q=${encodeURIComponent(term)}`,
+          headers: { cookie },
+        });
+        expect(response.statusCode, term).toBe(200);
+        expect(response.json()).toMatchObject({
+          data: [{ id: expectedId }],
+          pagination: { total: 1 },
+        });
+      }
+    });
+
     it("returns BAD_REQUEST for blank, overlong, repeated or unknown q inputs", async () => {
       for (const query of [
         "q=%20%20%20",
@@ -405,7 +446,7 @@ describe.runIf(Boolean(databaseUrl))(
       });
     });
 
-    it("uses [start,end) and the prior [now−30d,now) window for published pharmacies", async () => {
+    it("counts an approved duty starting exactly now as recent presence", async () => {
       await pharmacy(
         prisma,
         ids.alpha,
@@ -482,7 +523,7 @@ describe.runIf(Boolean(databaseUrl))(
           active: 1,
           upcoming: 0,
           expired: 2,
-          withoutRecentDuty: 3,
+          withoutRecentDuty: 2,
         },
       });
       currentTime = new Date(NOW.getTime() + 1);
