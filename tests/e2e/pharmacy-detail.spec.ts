@@ -309,10 +309,15 @@ test("map header search and chips hand off to real discovery query and filters",
   );
   await search.press("Enter");
   await searchRequest;
-  await expect(page).toHaveURL(/\/\?q=Jagger#map$/);
+  await expect(page).toHaveURL(/\/\?q=Jagger$/);
   await expect(
     page.getByRole("region", { name: "Carte des pharmacies" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("searchbox", {
+      name: "Rechercher une pharmacie, un quartier",
+    }),
+  ).toHaveValue("Jagger");
 
   await page.goto(`/pharmacies/${id}`);
   const districtRequest = page.waitForRequest(
@@ -322,10 +327,13 @@ test("map header search and chips hand off to real discovery query and filters",
   );
   await page.getByRole("link", { name: "Quartier : Poto-Poto" }).click();
   await districtRequest;
-  await expect(page).toHaveURL(/\/\?district=Poto-Poto#map$/);
+  await expect(page).toHaveURL(/\/\?district=Poto-Poto$/);
   await expect(
     page.getByRole("region", { name: "Carte des pharmacies" }),
   ).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Quartier" })).toHaveValue(
+    "Poto-Poto",
+  );
 
   await page.goto(`/pharmacies/${id}`);
   const arrondissementRequest = page.waitForRequest(
@@ -335,11 +343,14 @@ test("map header search and chips hand off to real discovery query and filters",
   );
   await page.getByRole("link", { name: "Arrondissement : Poto-Poto" }).click();
   await arrondissementRequest;
-  await expect(page).toHaveURL(/\/\?arrondissement=Poto-Poto#map$/);
+  await expect(page).toHaveURL(/\/\?arrondissement=Poto-Poto$/);
+  await expect(
+    page.getByRole("combobox", { name: "Arrondissement" }),
+  ).toHaveValue("Poto-Poto");
 
   await page.goto(`/pharmacies/${id}`);
   await page.getByRole("link", { name: "Ouvertes maintenant" }).click();
-  await expect(page).toHaveURL(/\/#map$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
 });
 
 test("the selected point keeps the API name visible and the lower actions clear the fixed nav", async ({

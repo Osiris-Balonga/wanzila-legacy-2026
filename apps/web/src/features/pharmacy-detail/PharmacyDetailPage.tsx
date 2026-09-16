@@ -64,8 +64,8 @@ function discoveryMapHref(
   value?: string,
 ) {
   const normalized = value?.trim();
-  if (!field || !normalized) return "/#map";
-  return `/?${new URLSearchParams({ [field]: normalized }).toString()}#map`;
+  if (!field || !normalized) return "/";
+  return `/?${new URLSearchParams({ [field]: normalized }).toString()}`;
 }
 
 function PharmacyDetailMapControls({ pharmacy }: { pharmacy: PublicPharmacy }) {
@@ -77,7 +77,7 @@ function PharmacyDetailMapControls({ pharmacy }: { pharmacy: PublicPharmacy }) {
     const search = normalized
       ? `?${new URLSearchParams({ q: normalized }).toString()}`
       : "";
-    window.location.assign(`/${search}#map`);
+    window.location.assign(`/${search}`);
   }
 
   return (
@@ -108,7 +108,7 @@ function PharmacyDetailMapControls({ pharmacy }: { pharmacy: PublicPharmacy }) {
         aria-label="Filtres sur la carte"
         className="pharmacy-detail-map-filters"
       >
-        <a className="pharmacy-detail-map-filters__active" href="/#map">
+        <a className="pharmacy-detail-map-filters__active" href="/">
           <ClockIcon aria-hidden="true" weight="fill" />
           Ouvertes maintenant
         </a>
@@ -183,7 +183,7 @@ export function describeDuty(pharmacy: PublicPharmacy): DutyView {
 function DetailNavigation() {
   return (
     <nav aria-label="Navigation publique" className="pharmacy-detail-nav">
-      <a aria-current="page" href="/#map">
+      <a aria-current="page" href="/">
         <MapPinIcon aria-hidden="true" weight="fill" />
         <span>Carte</span>
       </a>
@@ -247,7 +247,7 @@ function PharmacyDetailContent({
             Carte indisponible : coordonnées absentes ou invalides.
           </div>
         )}
-        <a className="pharmacy-detail-back" href="/#map">
+        <a className="pharmacy-detail-back" href="/">
           <ChevronLeft aria-hidden="true" /> Retour à la carte
         </a>
         <PharmacyDetailMapControls pharmacy={pharmacy} />
@@ -466,7 +466,7 @@ function PharmacyDetailFallback({
 }) {
   return (
     <section className="pharmacy-detail-fallback">
-      <a className="pharmacy-detail-back" href="/#map">
+      <a className="pharmacy-detail-back" href="/">
         <ChevronLeft aria-hidden="true" /> Retour à la carte
       </a>
       {state.status === "loading" || state.status === "idle" ? (
