@@ -125,11 +125,16 @@ export async function createApp(options: AppOptions) {
       now,
       rateLimitMax: analyticsRateLimitMax,
     });
-    registerAdminPharmacyRoutes(app, {
-      prisma,
-      now,
-      webOrigin: options.webOrigin,
-    });
+    await app.register(
+      (adminApi) => {
+        registerAdminPharmacyRoutes(adminApi, {
+          prisma,
+          now,
+          webOrigin: options.webOrigin,
+        });
+      },
+      { prefix: "/api/v1" },
+    );
     await app.register(
       (publicApi) => {
         registerPublicPharmacyRoutes(publicApi, {
