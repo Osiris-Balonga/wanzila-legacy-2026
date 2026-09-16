@@ -27,6 +27,12 @@ const errors = {
       message: "Request origin is not allowed",
     },
   },
+  conflict: {
+    error: {
+      code: "CONFLICT",
+      message: "Request conflicts with the current resource state",
+    },
+  },
   clientError: { error: { code: "CLIENT_ERROR", message: "Request rejected" } },
 } as const satisfies Record<string, ApiError>;
 
@@ -48,6 +54,10 @@ export function sendAuthenticationFailed(reply: FastifyReply): void {
 
 export function sendOriginForbidden(reply: FastifyReply): void {
   void reply.code(403).send(errors.originForbidden);
+}
+
+export function sendConflict(reply: FastifyReply, message: string): void {
+  void reply.code(409).send({ error: { code: "CONFLICT", message } });
 }
 
 export function sendRateLimited(reply: FastifyReply): void {

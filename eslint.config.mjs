@@ -2,7 +2,14 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/coverage/**", "apps/api/src/generated/**"] },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/coverage/**",
+      "apps/api/src/generated/**",
+      "packages/contracts/test/**",
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

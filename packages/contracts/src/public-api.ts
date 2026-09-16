@@ -14,6 +14,7 @@ export const apiErrorSchema = z.object({
       "AUTHENTICATION_REQUIRED",
       "AUTHENTICATION_FAILED",
       "ORIGIN_FORBIDDEN",
+      "CONFLICT",
     ]),
     message: z.string(),
   }),
