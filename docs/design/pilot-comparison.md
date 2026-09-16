@@ -2,10 +2,10 @@
 
 This records the first deterministic browser captures against the supplied references. The captures are available from the Browser job's `visual-evidence` artifact for the exact PR commit. They are diagnostic, **not approved visual baselines**. Data below is fixture-only; it is not application data.
 
-| Pilot | Supplied reference | Browser capture | Verdict |
-| --- | --- | --- | --- |
-| Public, 390 CSS px | [`mobile-map.png`](mockups/mobile-map.png) — compare inner web crop, not phone bezel/status bar | `public-discovery-390.png` | Not acceptable: no map, markers, map controls, map/list switch or saved tab. Search/filter geometry and navigation hierarchy differ. #22 owns the interactive map; #40 owns saved pharmacies. |
-| Admin directory, 1440 CSS px | [`admin-pharmacies.png`](mockups/admin-pharmacies.png), original 1586×992 | `admin-pharmacies-1440.png` | Not acceptable: shell geometry, toolbar and density differ; pharmacy thumbnails, source and verification column, period control, account treatment and row menu are absent. #39 owns the rebuild. |
+| Pilot                        | Supplied reference                                                                              | Browser capture             | Verdict                                                                                                                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public, 390 CSS px           | [`mobile-map.png`](mockups/mobile-map.png) — compare inner web crop, not phone bezel/status bar | `public-discovery-390.png`  | Not acceptable: no map, markers, map controls, map/list switch or saved tab. Search/filter geometry and navigation hierarchy differ. #22 owns the interactive map; #40 owns saved pharmacies.     |
+| Admin directory, 1440 CSS px | [`admin-pharmacies.png`](mockups/admin-pharmacies.png), original 1586×992                       | `admin-pharmacies-1440.png` | Not acceptable: shell geometry, toolbar and density differ; pharmacy thumbnails, source and verification column, period control, account treatment and row menu are absent. #39 owns the rebuild. |
 
 ## Data and asset decisions required for the pilots
 
