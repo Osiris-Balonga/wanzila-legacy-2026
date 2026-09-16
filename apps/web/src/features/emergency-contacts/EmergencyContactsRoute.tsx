@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createEmergencyContactsClient,
   type EmergencyContactsLoadState,
@@ -23,21 +23,30 @@ function toPageState(
 }
 
 export function EmergencyContactsRoute() {
+  const requestVersion = useRef(0);
   const [state, setState] = useState<EmergencyContactsPageState>({
     kind: "loading",
   });
 
   const load = useCallback(() => {
+    const version = ++requestVersion.current;
     const client = createEmergencyContactsClient({
       fetch: (input, init) => window.fetch(input, init),
     });
     return client.load({
-      onState: (nextState) => setState(toPageState(nextState)),
+      onState: (nextState) => {
+        if (version === requestVersion.current) {
+          setState(toPageState(nextState));
+        }
+      },
     });
   }, []);
 
   useEffect(() => {
     void load();
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   return <EmergencyContactsPage onRetry={() => void load()} state={state} />;
