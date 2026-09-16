@@ -100,7 +100,7 @@ async function saveEvidence(
   expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
 }
 
-test("visual evidence: public discovery at four widths", async ({
+test("visual evidence: public discovery list at four widths", async ({
   page,
 }, testInfo) => {
   await page.route("**/api/v1/pharmacies?**", (route) =>
@@ -117,7 +117,7 @@ test("visual evidence: public discovery at four widths", async ({
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto("/#list");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(
       page.getByRole("link", { name: /Pharmacie Centrale/ }),

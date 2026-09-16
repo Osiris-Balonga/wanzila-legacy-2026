@@ -344,7 +344,7 @@ for (const viewport of [
 
     await page.getByRole("button", { name: "Publier" }).click();
     await expect(page.getByText("Publiée")).toBeVisible();
-    await page.goto("/");
+    await page.goto("/#list");
     await expect(page.getByText(pharmacy.name)).toBeHidden();
     state.dutyEligible = true;
     await page.reload();
@@ -379,7 +379,7 @@ for (const viewport of [
     await page.keyboard.press("Enter");
     await confirmation.getByRole("button", { name: "Archiver" }).click();
 
-    await page.goto("/");
+    await page.goto("/#list");
     await expect(page.getByText(pharmacy.name)).toBeHidden();
   });
 }
