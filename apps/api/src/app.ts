@@ -18,6 +18,7 @@ import { registerEmergencyContactRoutes } from "./modules/public-api/emergency-c
 import { registerPublicPharmacyRoutes } from "./modules/public-api/routes.js";
 import { registerAdministratorAuthRoutes } from "./modules/admin-auth/routes.js";
 import { registerAdminPharmacyRoutes } from "./modules/admin-pharmacy/routes.js";
+import { registerAdminDutyRoutes } from "./modules/admin-duty/routes.js";
 import type { AdministratorAuthRouteOptions } from "./modules/admin-auth/routes.js";
 import {
   internalError,
@@ -131,6 +132,12 @@ export async function createApp(options: AppOptions) {
           prisma,
           now,
           webOrigin: options.webOrigin,
+        });
+        registerAdminDutyRoutes(adminApi, {
+          prisma,
+          now,
+          webOrigin: options.webOrigin,
+          sourceFreshnessMaxAgeMs,
         });
       },
       { prefix: "/api/v1" },
