@@ -77,6 +77,13 @@ export function AdminShell({ pathname }: AdminShellProps) {
   }
 
   const isPharmacyRoute = pathname.startsWith("/admin/pharmacies");
+  const signOut = async () => {
+    await fetch("/api/v1/admin/auth/sign-out", {
+      method: "POST",
+      credentials: "include",
+    });
+    window.location.assign("/admin/connexion");
+  };
 
   return (
     <div className="admin-shell" data-shell="admin">
@@ -147,6 +154,9 @@ export function AdminShell({ pathname }: AdminShellProps) {
           </SheetContent>
         </Sheet>
         <div className="admin-header__tools">
+          <Button variant="ghost" onClick={() => void signOut()}>
+            Se déconnecter
+          </Button>
           <Label className="sr-only" htmlFor="admin-search">
             Recherche
           </Label>
