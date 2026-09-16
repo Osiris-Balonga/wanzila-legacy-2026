@@ -272,4 +272,22 @@ describe("issue #6 discovery client boundary", () => {
       response: { data: [{ name: "Pharmacie Centrale" }] },
     });
   });
+
+  it("keeps an invalid replacement filter from being overwritten by an older response", async () => {
+    const createDiscoveryClient = await loadDiscoveryClient();
+    const first = deferred<Response>();
+    const client = createDiscoveryClient({ fetch: vi.fn(() => first.promise) });
+
+    const older = client.load({ page: 1 });
+    await expect(
+      client.load({ district: " ", page: 0 }),
+    ).resolves.toMatchObject({
+      status: "invalid-filter",
+    });
+    first.resolve(
+      new Response(JSON.stringify(pharmacyListResponse()), { status: 200 }),
+    );
+    await older;
+    expect(client.getState()).toMatchObject({ status: "invalid-filter" });
+  });
 });

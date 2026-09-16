@@ -1,9 +1,9 @@
 import type { PharmacyListResponse } from "@wanzila/contracts";
-import { createElement, type ReactElement } from "react";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { DiscoveryPage } from "./DiscoveryPage.js";
 
-const discoveryPageModule = "./DiscoveryPage.js";
 const pharmacyId = "00000000-0000-4000-8000-000000000006";
 
 type DiscoveryLoadState =
@@ -16,51 +16,6 @@ type DiscoveryLoadState =
       code: "NETWORK_ERROR" | "API_ERROR" | "INVALID_RESPONSE";
     }
   | { status: "uncertain-data"; response: PharmacyListResponse };
-
-type DiscoveryPageProps = {
-  state: DiscoveryLoadState;
-  filters: {
-    q?: string;
-    district?: string;
-    arrondissement?: string;
-    page: number;
-  };
-  onRetry: () => void;
-};
-
-type DiscoveryPage = (props: DiscoveryPageProps) => ReactElement;
-
-function isDiscoveryPageModule(
-  value: unknown,
-): value is { DiscoveryPage: DiscoveryPage } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "DiscoveryPage" in value &&
-    typeof value.DiscoveryPage === "function"
-  );
-}
-
-async function loadDiscoveryPage(): Promise<DiscoveryPage> {
-  let candidate: unknown;
-
-  try {
-    candidate = await import(/* @vite-ignore */ discoveryPageModule);
-  } catch (error) {
-    throw new Error(
-      "Issue #6 needs the accessible public DiscoveryPage list surface.",
-      { cause: error },
-    );
-  }
-
-  if (!isDiscoveryPageModule(candidate)) {
-    throw new Error(
-      "Issue #6 DiscoveryPage must be exported from its feature module.",
-    );
-  }
-
-  return candidate.DiscoveryPage;
-}
 
 function response(sourceFreshness: "FRESH" | "STALE" | "UNKNOWN" = "FRESH") {
   return {
@@ -93,7 +48,7 @@ function response(sourceFreshness: "FRESH" | "STALE" | "UNKNOWN" = "FRESH") {
 function renderPage(state: DiscoveryLoadState, filters = { page: 1 }) {
   const onRetry = vi.fn();
 
-  return loadDiscoveryPage().then((DiscoveryPage) =>
+  return Promise.resolve(
     renderToStaticMarkup(
       createElement(DiscoveryPage, { filters, onRetry, state }),
     ),

@@ -161,8 +161,12 @@ for (const viewport of viewports) {
         name: "Rechercher une pharmacie, un quartier",
       }),
     ).toHaveValue("Centrale");
-    await expect(page.getByLabel("Quartier")).toHaveValue("Plateau");
-    await expect(page.getByLabel("Arrondissement")).toHaveValue("Poto-Poto");
+    await expect(
+      page.getByRole("combobox", { name: "Quartier", exact: true }),
+    ).toHaveValue("Plateau");
+    await expect(
+      page.getByRole("combobox", { name: "Arrondissement", exact: true }),
+    ).toHaveValue("Poto-Poto");
     await expect(
       page.getByRole("list", { name: "Résultats de pharmacies de garde" }),
     ).toBeVisible();
@@ -200,9 +204,13 @@ test("search URL state is shareable, restored through navigation, and keyboard f
   ).toBe(true);
 
   await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Quartier")).toBeFocused();
+  const district = page.getByRole("combobox", {
+    name: "Quartier",
+    exact: true,
+  });
+  await expect(district).toBeFocused();
   await page.keyboard.press("ArrowDown");
-  await expect(page.getByLabel("Quartier")).toHaveValue("Plateau");
+  await expect(district).toHaveValue("Plateau");
   await expect(page).toHaveURL(/district=Plateau/);
   await expect
     .poll(() =>
@@ -258,7 +266,9 @@ test("discovery flow emits the required analytics through the existing transport
         ).length,
     )
     .toBe(1);
-  await page.getByLabel("Quartier").selectOption("Plateau");
+  await page
+    .getByRole("combobox", { name: "Quartier", exact: true })
+    .selectOption("Plateau");
   await expect
     .poll(
       () =>
@@ -372,7 +382,9 @@ test("pagination updates the URL and #4 request, resets after a filter change, a
     pagination.getByRole("button", { name: "Page 3" }),
   ).toHaveAttribute("aria-current", "page");
 
-  await page.getByLabel("Quartier").selectOption("Plateau");
+  await page
+    .getByRole("combobox", { name: "Quartier", exact: true })
+    .selectOption("Plateau");
   await expect
     .poll(() => new URL(page.url()).searchParams.get("page") ?? "1")
     .toBe("1");
@@ -388,7 +400,9 @@ test("pagination updates the URL and #4 request, resets after a filter change, a
 
   await pagination.getByRole("button", { name: "Page 3" }).click();
   await expect(page).toHaveURL(/page=3/);
-  await page.getByLabel("Arrondissement").selectOption("Poto-Poto");
+  await page
+    .getByRole("combobox", { name: "Arrondissement", exact: true })
+    .selectOption("Poto-Poto");
   await expect
     .poll(() => new URL(page.url()).searchParams.get("page") ?? "1")
     .toBe("1");
