@@ -52,7 +52,7 @@ type DiscoveryPageProps = {
   onSelectMap?: (id: string) => void;
 };
 
-const districts = ["Plateau", "Bacongo", "Moungali"];
+const districts = ["Plateau", "Poto-Poto", "Bacongo", "Moungali"];
 const arrondissements = ["Poto-Poto", "Moungali", "Bacongo"];
 
 function getResponse(
@@ -423,7 +423,7 @@ export function DiscoveryRoute() {
   );
   const [filters, setFilters] = useState<DiscoveryUrlState>(initialFilters);
   const [mode, setMode] = useState<"list" | "map">(
-    globalThis.location.hash === "#map" ? "map" : "list",
+    globalThis.location.hash === "#list" ? "list" : "map",
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [state, setState] = useState<
@@ -485,7 +485,7 @@ export function DiscoveryRoute() {
   useEffect(() => {
     const restoreFromHistory = () => {
       const restored = parseDiscoveryUrlState(globalThis.location.search);
-      setMode(globalThis.location.hash === "#map" ? "map" : "list");
+      setMode(globalThis.location.hash === "#list" ? "list" : "map");
       setFilters(restored);
       void load(restored);
     };
@@ -501,7 +501,7 @@ export function DiscoveryRoute() {
     globalThis.history.pushState(
       {},
       "",
-      `${globalThis.location.pathname}${globalThis.location.search}${nextMode === "map" ? "#map" : ""}`,
+      `${globalThis.location.pathname}${globalThis.location.search}${nextMode === "list" ? "#list" : ""}`,
     );
     setMode(nextMode);
   };

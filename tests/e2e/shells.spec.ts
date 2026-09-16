@@ -18,7 +18,7 @@ const expectNoHorizontalOverflow = async (page: Page) => {
 for (const viewport of viewports) {
   test(`public shell is usable at ${viewport.name}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto("/#list");
     await expect(page.getByRole("main")).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await expect(
@@ -47,7 +47,7 @@ for (const viewport of viewports) {
 }
 
 test("keyboard focus remains visible on shell navigation", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#list");
   await page.locator("body").press("Tab");
   await expect(
     page.getByRole("link", { name: "Aller au contenu" }),
