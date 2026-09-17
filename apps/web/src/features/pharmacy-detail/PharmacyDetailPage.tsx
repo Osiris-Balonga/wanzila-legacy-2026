@@ -111,7 +111,7 @@ function PharmacyDetailMapControls({ pharmacy }: { pharmacy: PublicPharmacy }) {
       >
         <a className="pharmacy-detail-map-filters__active" href="/">
           <ClockIcon aria-hidden="true" weight="fill" />
-          Ouvertes maintenant
+          Gardes indiquées
         </a>
         <a
           aria-label={

@@ -110,7 +110,7 @@ test("detail-to-call is explicit, keyboard reachable and tracked", async ({
     page.getByRole("searchbox", {
       name: "Rechercher une pharmacie, un quartier",
     }),
-    page.getByRole("link", { name: "Ouvertes maintenant" }),
+    page.getByRole("link", { name: "Gardes indiquées" }),
     page.getByRole("link", { name: "Quartier : Poto-Poto" }),
     page.getByRole("link", { name: "Arrondissement : Poto-Poto" }),
     page.getByRole("link", { name: "Itinéraire" }),
@@ -358,7 +358,7 @@ test("map header search and chips hand off to real discovery query and filters",
   ).toHaveValue("Poto-Poto");
 
   await page.goto(`/pharmacies/${id}`);
-  await page.getByRole("link", { name: "Ouvertes maintenant" }).click();
+  await page.getByRole("link", { name: "Gardes indiquées" }).click();
   await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
 });
 
