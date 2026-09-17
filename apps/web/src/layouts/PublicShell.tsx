@@ -8,6 +8,7 @@ import { EmergencyContactsRoute } from "../features/emergency-contacts/Emergency
 import { PharmacyDetailRoute } from "../features/pharmacy-detail/PharmacyDetailPage";
 import { RoutePreviewRoute } from "../features/navigation/RoutePreviewPage";
 import { SavedPharmaciesPage } from "../features/saved-pharmacies/SavedPharmaciesPage";
+import { PublicContributionPage } from "../features/contributions/PublicContributionPage";
 
 type PublicShellProps = { pathname: string };
 const navigation: Array<{ href: string; icon: IconName; label: string }> = [
@@ -61,6 +62,8 @@ export function PublicShell({ pathname }: PublicShellProps) {
         <DiscoveryRoute />
       ) : pathname === "/enregistrees" ? (
         <SavedPharmaciesPage />
+      ) : pathname === "/contribuer" ? (
+        <PublicContributionPage />
       ) : navigationSurfaceId ? (
         <RoutePreviewRoute id={navigationSurfaceId} />
       ) : pharmacyDetailId ? (
