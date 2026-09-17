@@ -16,6 +16,7 @@ import {
 } from "./modules/analytics/routes.js";
 import { registerEmergencyContactRoutes } from "./modules/public-api/emergency-contact-routes.js";
 import { registerPublicPharmacyRoutes } from "./modules/public-api/routes.js";
+import { registerRoutingRoutes } from "./modules/routing/routes.js";
 import { registerAdministratorAuthRoutes } from "./modules/admin-auth/routes.js";
 import { registerAdminPharmacyRoutes } from "./modules/admin-pharmacy/routes.js";
 import { registerAdminDutyRoutes } from "./modules/admin-duty/routes.js";
@@ -72,6 +73,10 @@ export interface AppOptions {
   analyticsRateLimitMax?: number;
   nodeEnvironment?: "development" | "test" | "production";
   verifyPassword?: AdministratorAuthRouteOptions["verifyPassword"];
+  routingBaseUrl?: string;
+  routingFetch?: typeof fetch;
+  routingNowMs?: () => number;
+  routingTimeoutMs?: number;
 }
 
 export async function createApp(options: AppOptions) {
@@ -156,6 +161,17 @@ export async function createApp(options: AppOptions) {
           sourceFreshnessMaxAgeMs,
         });
         registerEmergencyContactRoutes(publicApi, prisma);
+        registerRoutingRoutes(publicApi, {
+          prisma,
+          ...(options.routingBaseUrl
+            ? { baseUrl: options.routingBaseUrl }
+            : {}),
+          ...(options.routingFetch ? { fetch: options.routingFetch } : {}),
+          ...(options.routingNowMs ? { nowMs: options.routingNowMs } : {}),
+          ...(options.routingTimeoutMs
+            ? { timeoutMs: options.routingTimeoutMs }
+            : {}),
+        });
       },
       { prefix: "/api/v1" },
     );

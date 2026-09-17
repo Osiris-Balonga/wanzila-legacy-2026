@@ -14,6 +14,8 @@ export const apiErrorSchema = z.object({
       "AUTHENTICATION_REQUIRED",
       "AUTHENTICATION_FAILED",
       "ORIGIN_FORBIDDEN",
+      "ROUTE_NOT_FOUND",
+      "ROUTING_UNAVAILABLE",
       "CONFLICT",
     ]),
     message: z.string(),
