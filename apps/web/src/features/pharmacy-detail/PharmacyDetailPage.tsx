@@ -283,13 +283,10 @@ function PharmacyDetailContent({
           className="pharmacy-detail-actions"
           aria-label="Actions pour la pharmacie"
         >
-          <Button
-            className="pharmacy-detail-actions__primary"
-            disabled
-            title="Itinéraire bientôt disponible"
-            type="button"
-          >
-            <Navigation aria-hidden="true" /> <span>Itinéraire</span>
+          <Button asChild className="pharmacy-detail-actions__primary">
+            <a href={`/pharmacies/${pharmacy.id}/itineraire`}>
+              <Navigation aria-hidden="true" /> <span>Itinéraire</span>
+            </a>
           </Button>
           {dialablePhone(pharmacy.phone) ? (
             <Button
@@ -334,7 +331,7 @@ function PharmacyDetailContent({
           </Button>
         </div>
         <p className="pharmacy-detail-actions-note">
-          Itinéraire, enregistrement et signalement bientôt disponibles.
+          Enregistrement et signalement bientôt disponibles.
         </p>
 
         <Separator />
