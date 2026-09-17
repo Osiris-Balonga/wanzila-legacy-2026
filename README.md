@@ -13,6 +13,8 @@ Next.js écoute sur le port **3100** et JSON Server sur **3101** en boucle local
 
 Sur un smartphone, ouvrez l'adresse réseau du serveur Next, avec **HTTPS** pour que la géolocalisation soit autorisée. Le téléphone ne doit pas accéder directement à `localhost:3101`. Le serveur JSON Server doit rester privé ; seules les requêtes GET passent par `/data`. Aucune interface d'administration modifiable n'est exposée.
 
+Pour un hébergement séparé, installez les dépendances de production des deux services. Lancez JSON Server sur un réseau privé avec `npx json-server db.json --host 0.0.0.0 --port 3101`, puis donnez son URL interne à `JSON_SERVER_URL` lors du build Next.js. N'exposez pas le port JSON Server publiquement : son API native permet les écritures sans authentification.
+
 ## Données
 
 `db.json` contient 11 entrées `amenity=pharmacy` de Brazzaville issues d'OpenStreetMap, récupérées via la [couche OSM_AF_Medical ArcGIS](https://services-eu1.arcgis.com/zci5bUiJ8olAal7N/arcgis/rest/services/OSM_AF_Medical/FeatureServer/0) le 17 septembre 2026. Leur commune a été contrôlée avec le [géocodage inverse Nominatim](https://nominatim.org/release-docs/latest/api/Reverse/) ; une entrée située à Kinshasa a été écartée. Chaque fiche renvoie à son objet OSM. Les noms et coordonnées sont traçables à cette source collaborative ; leur exactitude sur place n'a pas été contrôlée. Numéros, photos, horaires et gardes ne sont pas ajoutés sans vérification.
