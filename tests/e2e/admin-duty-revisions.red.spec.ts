@@ -328,6 +328,10 @@ test("invalid proposal is blocked, then one POST submits a PENDING revision with
 }) => {
   await mockEditApi(page);
   let submitted = 0;
+  const submittedRevision = {
+    ...revision,
+    after: { ...revision.after, sourceId },
+  };
   let directPatch = 0;
   let directApproval = 0;
   page.on("request", (request) => {
@@ -337,10 +341,19 @@ test("invalid proposal is blocked, then one POST submits a PENDING revision with
       directApproval += 1;
     }
   });
+  await page.unroute(`**${revisionsPath}?*`);
+  await page.route(`**${revisionsPath}?*`, (route) =>
+    route.fulfill({
+      json: {
+        data: submitted ? [submittedRevision] : [],
+        pagination: pageInfo(submitted ? 1 : 0),
+      },
+    }),
+  );
   await page.route(`**${revisionsPath}`, (route) => {
     if (route.request().method() !== "POST") return route.continue();
     submitted += 1;
-    return route.fulfill({ status: 201, json: { data: revision } });
+    return route.fulfill({ status: 201, json: { data: submittedRevision } });
   });
   await page.goto(editUrl);
   await page.getByLabel("Date de fin").fill("2026-09-16");
@@ -435,6 +448,24 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
   let approvedOnServer = false;
   let canonicalReads = 0;
   await mockEditApi(page, { revisions: [revision] });
+  await page.unroute(`**${revisionsPath}?*`);
+  await page.route(`**${revisionsPath}?*`, (route) =>
+    route.fulfill({
+      json: {
+        data: [
+          approvedOnServer
+            ? {
+                ...revision,
+                status: "APPROVED",
+                reviewedBy: "Réviseur de test",
+                reviewedAt: "2026-09-16T13:00:00.000Z",
+              }
+            : revision,
+        ],
+        pagination: pageInfo(1),
+      },
+    }),
+  );
   await page.unroute(`**${dutyPath}`);
   await page.route(`**${dutyPath}`, (route) => {
     canonicalReads += 1;
