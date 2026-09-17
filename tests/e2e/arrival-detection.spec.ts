@@ -146,7 +146,9 @@ test("explicit start, one arrival at 50 m, cleanup, no position storage or trans
   await expect(page).toHaveURL(new RegExp(`/pharmacies/${id}/navigation$`));
   expect(await witness(page)).toEqual({ calls: 1, cleared: [] });
   await emitPosition(page, -4.2646, 15.2429);
-  await expect(page.getByText(/distance à vol d’oiseau/i)).toBeVisible();
+  await expect(
+    page.getByText(/distance GPS estimée à vol d’oiseau/i),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: /suivi d’arrivée en cours/i }),
   ).toBeVisible();
@@ -306,6 +308,9 @@ test("a centered inaccurate fix remains uncertain until accuracy supports arriva
     .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
     .click();
   await emitPosition(page, -4.2636, 15.2429, 1000);
+  await expect(
+    page.getByText(/distance GPS estimée à vol d’oiseau/i),
+  ).toBeVisible();
   await expect(
     page.getByRole("status").filter({ hasText: /précision insuffisante/i }),
   ).toBeVisible();

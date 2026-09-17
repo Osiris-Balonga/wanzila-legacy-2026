@@ -89,7 +89,8 @@ export function ArrivalControls({
           <p>
             <strong>{Math.round(state.distanceMeters)} m</strong>
             <span>
-              Distance à vol d’oiseau · seuil d’arrivée {radiusMeters} m
+              Distance GPS estimée à vol d’oiseau · seuil d’arrivée{" "}
+              {radiusMeters} m
             </span>
           </p>
         </div>
