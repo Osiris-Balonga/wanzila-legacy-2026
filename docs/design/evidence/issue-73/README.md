@@ -2,7 +2,8 @@
 
 Référence : [`admin-duty-edit.png`](../../mockups/admin-duty-edit.png), 1586 × 992.
 Implémentation : `/admin/gardes/:id/modifier` depuis l’action **Modifier** du menu
-ellipse de la liste. Les captures ci-dessous utilisent le même jeu de données
+ellipse d’une garde APPROVED dans la liste. Les gardes PENDING/REJECTED ne
+proposent pas cette action. Les captures ci-dessous utilisent le même jeu de données
 déterministe du test Playwright, à l’exception du fond cartographique réseau
 dans les captures « live-map ». Aucune photo ou donnée d’activité n’est
 créée pour ressembler à la maquette.

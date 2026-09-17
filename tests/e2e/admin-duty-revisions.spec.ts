@@ -193,6 +193,47 @@ test("the duty directory exposes Modifier in the row ellipse menu", async ({
   ).toBeVisible();
 });
 
+test("PENDING and REJECTED rows do not offer an editor in the ellipse", async ({
+  page,
+}) => {
+  await mockEditApi(page);
+  await page.route("**/api/v1/admin/duties/summary", (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          asOf: "2026-09-16T12:00:00.000Z",
+          active: 0,
+          upcoming: 0,
+          expired: 0,
+          withoutRecentDuty: 0,
+        },
+      },
+    }),
+  );
+  let status: "PENDING" | "REJECTED" = "PENDING";
+  await page.route("**/api/v1/admin/duties?*", (route) =>
+    route.fulfill({
+      json: {
+        data: [{ ...canonical, status }],
+        pagination: pageInfo(1),
+      },
+    }),
+  );
+  for (const nextStatus of ["PENDING", "REJECTED"] as const) {
+    status = nextStatus;
+    await page.goto("/admin/gardes");
+    await page
+      .getByRole("button", { name: `Actions pour ${pharmacy.name}` })
+      .click();
+    await expect(page.getByRole("menuitem", { name: /modifier/i })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole("menuitem", { name: "Voir la pharmacie" }),
+    ).toBeVisible();
+  }
+});
+
 test("APPROVED page separates published canonical values, editable proposal and real history", async ({
   page,
 }) => {

@@ -270,11 +270,13 @@ function DutyRows({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <a href={`/admin/gardes/${duty.id}/modifier`}>
-                          Modifier
-                        </a>
-                      </DropdownMenuItem>
+                      {duty.status === "APPROVED" ? (
+                        <DropdownMenuItem asChild>
+                          <a href={`/admin/gardes/${duty.id}/modifier`}>
+                            Modifier
+                          </a>
+                        </DropdownMenuItem>
+                      ) : null}
                       {pharmacy ? (
                         <DropdownMenuItem asChild>
                           <a href={`/admin/pharmacies/${pharmacy.id}`}>
