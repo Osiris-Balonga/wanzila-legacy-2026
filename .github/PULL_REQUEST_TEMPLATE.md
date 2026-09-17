@@ -23,16 +23,12 @@ Closes #
 
 <!-- Include screenshots for visual changes and call out migrations, compatibility concerns, or follow-up work. -->
 
-## Visual evidence (required for web UI changes)
+## Layout evidence (required for web UI changes)
 
-Reference image: <!-- Link each owning docs/design/mockups PNG. -->
+Layout reference: <!-- Link the relevant mockup, or N/A with a reason. -->
 
-Implementation capture: <!-- Link actual browser capture or Browser CI visual-evidence artifact; give commit/width. -->
+Implementation capture: <!-- One representative browser capture or CI artifact; give viewport. Add another only for a materially different layout. -->
 
-Annotated differences: <!-- Name each visible discrepancy. State "None after comparison" only if checked. -->
+Material deviations: <!-- Note only structural, action, behavior or data gaps; "None" is acceptable. Pixel, map-tile, icon and sample-data differences do not need listing. -->
 
-Missing data/assets: <!-- Name dependencies and issue numbers, or state "None after comparison". -->
-
-Responsive and interaction proof: <!-- 320/390/768/1440, keyboard, focus, overflow, and relevant states. -->
-
-Visual approval: Pending <!-- Replace with reviewer + approved commit only after side-by-side review. -->
+Responsive and interaction proof: <!-- Relevant 320/390/768/1440 smoke checks, keyboard, focus, overflow and key states. -->

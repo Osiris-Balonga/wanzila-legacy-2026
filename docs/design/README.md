@@ -32,19 +32,18 @@ The `mockups` directory contains the supplied visual direction for the responsiv
 
 Mockups communicate hierarchy and intent. They are not permission to invent behavior absent from the product workflows or the relevant GitHub Issue.
 
-## Visual acceptance contract
+## Layout acceptance contract
 
-[`reference-manifest.json`](reference-manifest.json) is the screen-by-screen inventory. Its `requiredRegions` are acceptance obligations, not a description of the current implementation. `routeStatus` distinguishes live routes from proposed routes and placeholders. Every owner issue must update its entry when the route, data contract, supported state or an approved deviation changes. The 19th PNG is the brand asset, not an extra screen.
+[`reference-manifest.json`](reference-manifest.json) inventories the supplied screens. Its `requiredRegions` describe the intended information architecture, not pixel-level specifications or a promise that every illustrated datum exists. `routeStatus` records historical planning state and must not be used alone to decide whether a current route is complete. The 19th PNG is the brand asset, not an extra screen. Release scope is set by the product issues; a deferred screen remains in the inventory but is not a V1 blocker.
 
-The mobile images are illustrations of a phone. Compare the web content inside the documented crop; the phone border, operating-system bar and outer background are not part of the responsive website. Compare the real desktop/admin screenshots at their source size and at 1440 CSS px. Use browser screenshots at 320, 390, 768 and 1440 CSS px for reflow. Never use the reference PNG as a page background or crop pharmacy photos from it.
+Accept a screen when its major layout regions, navigation model, content hierarchy, primary actions and responsive behavior are recognizably aligned with the reference. For example, retain the desktop admin sidebar and the public map's floating search, controls and bottom navigation. Functional equivalents are welcome when required by real data or the chosen web tools. Do not demand identical pixels, map tiles/labels/zoom, marker count, illustration assets, photos, sample figures, exact spacing, typography or icon glyphs. Do not invent data or working controls to fill a mockup region. A major structural change or omitted core action needs a product reason and a tracked follow-up or explicit scope decision; minor stylistic differences do not.
 
-The `visual-evidence` Playwright scenario uses fixed API responses and a fixed clock to produce CI artifacts for the public discovery route and admin directory. These are **diagnostic captures, not approved baselines**: both routes still have major reference gaps. Run `pnpm test:e2e --grep "visual evidence"` after `pnpm --filter @wanzila/web build`, then open the `visual-evidence` artifact from the Browser job. The evidence captures are not committed. A screenshot baseline may only be added in an owning feature PR after manual reference/capture comparison and a recorded reviewer approval. Once approved, `toHaveScreenshot` should prevent drift; it cannot establish initial fidelity by itself.
+The mobile images illustrate a phone; the bezel, operating-system bar and outer background are not web UI. Never use a reference PNG as a page background or crop pharmacy photos from it. Use 320, 390, 768 and 1440 CSS px as responsive smoke checks where relevant, but a screenshot at every width and at the mockup's exact source dimensions is not required. The `visual-evidence` Playwright scenario produces diagnostic CI captures with fixed data and clock. A screenshot regression baseline may be added for a stable component when useful, but it is not a prerequisite for layout acceptance or release; it cannot establish initial resemblance by itself.
 
-Each UI PR must include:
+Each screen-level UI PR must include:
 
-1. A link to every owning reference and to actual browser captures (CI artifact or stable PR attachment), side by side at the reference width.
-2. An annotated list of visible mismatches and of missing source data/assets. `None` is acceptable only after inspection. A missing major region requires a tracked dependency and explicit lead approval; CI green is not approval.
-3. Responsive 320/390/768/1440 results, keyboard/focus/overflow checks, and degraded-state evidence.
-4. The name of the visual approver and the exact approved commit. Until then write `Pending`; do not call a screenshot a baseline.
+1. The relevant reference, or `N/A` with a short explanation, and one representative browser capture (mobile for public UI, desktop for admin UI; add another only when the layout changes materially across breakpoints).
+2. A short note on **material** differences in layout, action placement, behavior or available data. `None` is acceptable. Minor pixel, font, icon, map-tile and fixture differences need no inventory.
+3. Responsive and interaction results for relevant widths/states, including keyboard, visible focus and no page-level overflow. Keep core flows and degraded states testable.
 
-The Branch policy job enforces completion of the evidence fields for PRs that change web TSX/CSS or web public assets. Semantic/interaction tests are separate from pixel comparison: a map or chart missing entirely must fail a region assertion, even if a newly recorded screenshot would otherwise pass.
+The Branch policy job checks these concise evidence fields for web UI changes. The lead reviews functional behavior and layout resemblance in the PR; no separate named visual approval or pixel-diff threshold is required. Semantic and interaction tests remain authoritative for a missing map, chart, action or other required region.

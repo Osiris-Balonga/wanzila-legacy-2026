@@ -27,12 +27,10 @@ if (uiFiles.length === 0) {
 }
 
 const fields = [
-  "Reference image",
+  "Layout reference",
   "Implementation capture",
-  "Annotated differences",
-  "Missing data/assets",
+  "Material deviations",
   "Responsive and interaction proof",
-  "Visual approval",
 ];
 
 const missing = fields.filter((field) => {
