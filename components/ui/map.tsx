@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import type { Pharmacy } from '@/types/database'
-import type { RouteInfo } from '@/components/navigation/NavigationOverlay'
+import type { RouteInfo } from '@/types/route'
 
 export interface MapProps {
   pharmacies: Pharmacy[]
@@ -11,9 +11,12 @@ export interface MapProps {
   height?: string
   className?: string
   onMarkerClick?: (pharmacy: Pharmacy) => void
+  focusPharmacy?: Pharmacy | null
+  tileStyle?: 'standard' | 'humanitarian'
+  resetKey?: number
 }
 
 export const Map = dynamic<MapProps>(() => import('./leaflet-map').then(module => module.LeafletMap), {
   ssr: false,
-  loading: () => <div className="flex items-center justify-center bg-gray-100 rounded-lg h-full min-h-[320px]">Chargement de la carte…</div>,
+  loading: () => <div className="grid h-full min-h-[320px] place-items-center bg-[#eef1f6] text-sm text-slate-600">Chargement de la carte…</div>,
 })

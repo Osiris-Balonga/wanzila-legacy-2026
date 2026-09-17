@@ -17,10 +17,17 @@ export function isOnDuty(pharmacy: Pharmacy, at = new Date()): boolean {
 export function filterPharmacies(pharmacies: Pharmacy[], filters: SearchFilters): Pharmacy[] {
   const query = filters.query.trim().toLocaleLowerCase('fr')
   return pharmacies.filter(pharmacy => {
-    const matchesQuery = !query || [pharmacy.name, pharmacy.full_address, pharmacy.city]
-      .some(value => value.toLocaleLowerCase('fr').includes(query))
+    const matchesQuery = !query || [pharmacy.name, pharmacy.full_address, pharmacy.city, pharmacy.neighborhood, pharmacy.borough]
+      .some(value => value?.toLocaleLowerCase('fr').includes(query))
     const matchesCategory = filters.category === 'all'
       || (filters.category === 'on_duty' ? isOnDuty(pharmacy) : pharmacy.category === filters.category)
     return matchesQuery && matchesCategory
+      && (!filters.neighborhood || pharmacy.neighborhood === filters.neighborhood)
+      && (!filters.borough || pharmacy.borough === filters.borough)
   })
+}
+
+export function hasCoordinates(pharmacy: Pharmacy): pharmacy is Pharmacy & { latitude: number; longitude: number } {
+  return typeof pharmacy.latitude === 'number' && Number.isFinite(pharmacy.latitude)
+    && typeof pharmacy.longitude === 'number' && Number.isFinite(pharmacy.longitude)
 }
