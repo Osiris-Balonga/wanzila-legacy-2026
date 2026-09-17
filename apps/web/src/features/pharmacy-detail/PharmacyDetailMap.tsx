@@ -27,7 +27,6 @@ export function PharmacyDetailMap({
   name,
   origin,
   route,
-  demonstrationVisible = true,
   focusDestination = false,
   interactive = false,
 }: {
@@ -35,7 +34,6 @@ export function PharmacyDetailMap({
   name: string;
   origin?: { latitude: number; longitude: number } | null;
   route?: RouteLineFeature | null;
-  demonstrationVisible?: boolean;
   focusDestination?: boolean;
   interactive?: boolean;
 }) {
@@ -47,10 +45,8 @@ export function PharmacyDetailMap({
   const originRef = useRef(origin);
   const originMarkerRef = useRef<MapLibreMarker>(null);
   const mapViewRef = useRef<(() => void) | null>(null);
-  const demonstrationVisibleRef = useRef(demonstrationVisible);
   const focusDestinationRef = useRef(focusDestination);
   originRef.current = origin;
-  demonstrationVisibleRef.current = demonstrationVisible;
   focusDestinationRef.current = focusDestination;
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -85,18 +81,12 @@ export function PharmacyDetailMap({
 
   useEffect(() => {
     mapViewRef.current?.();
-  }, [
-    demonstrationVisible,
-    focusDestination,
-    origin?.latitude,
-    origin?.longitude,
-  ]);
+  }, [focusDestination, origin?.latitude, origin?.longitude]);
 
   useEffect(() => {
     let cancelled = false;
     let map: MapLibreMap | undefined;
     let marker: MapLibreMarker | undefined;
-    let demonstrationOriginMarker: MapLibreMarker | undefined;
     let observer: ResizeObserver | undefined;
     void import("maplibre-gl")
       .then((maplibre) => {
@@ -117,7 +107,7 @@ export function PharmacyDetailMap({
           new maplibre.AttributionControl({ compact: false }),
           "bottom-left",
         );
-        const fitDemonstration = () => {
+        const fitRoute = () => {
           if (!map || !route) return;
           const points = route.geometry.coordinates;
           const longitudes = points.map(([longitude]) => longitude);
@@ -143,29 +133,12 @@ export function PharmacyDetailMap({
           if (!map) return;
           setMapIdle(false);
           if (route) {
-            const visibility = demonstrationVisibleRef.current
-              ? "visible"
-              : "none";
-            for (const layer of [
-              "route-preview-casing",
-              "route-preview-line",
-            ]) {
-              if (map.getLayer(layer))
-                map.setLayoutProperty(layer, "visibility", visibility);
-            }
-            if (demonstrationOriginMarker) {
-              demonstrationOriginMarker.getElement().style.display =
-                demonstrationVisibleRef.current ? "" : "none";
-            }
-          }
-          if (demonstrationVisibleRef.current && route) {
-            fitDemonstration();
+            fitRoute();
             return;
           }
           const current = originRef.current;
           if (
             !focusDestinationRef.current &&
-            !demonstrationVisibleRef.current &&
             current &&
             hasValidCoordinates(current)
           ) {
@@ -192,14 +165,14 @@ export function PharmacyDetailMap({
         mapViewRef.current = applyView;
         map.once("load", () => {
           if (route) {
-            map?.addSource("route-preview-demonstration", {
+            map?.addSource("route-preview-calculated", {
               type: "geojson",
               data: route,
             });
             map?.addLayer({
               id: "route-preview-casing",
               type: "line",
-              source: "route-preview-demonstration",
+              source: "route-preview-calculated",
               paint: {
                 "line-color": "#ffffff",
                 "line-width": 13,
@@ -210,7 +183,7 @@ export function PharmacyDetailMap({
             map?.addLayer({
               id: "route-preview-line",
               type: "line",
-              source: "route-preview-demonstration",
+              source: "route-preview-calculated",
               paint: {
                 "line-color": "#6437ed",
                 "line-width": 7,
@@ -245,20 +218,6 @@ export function PharmacyDetailMap({
         })
           .setLngLat([coordinates.longitude, coordinates.latitude])
           .addTo(map);
-        if (route) {
-          const demonstrationOriginElement = document.createElement("span");
-          demonstrationOriginElement.className =
-            "route-preview-map-origin route-preview-map-origin--demonstration";
-          demonstrationOriginElement.setAttribute(
-            "aria-label",
-            "Point de départ fictif du tracé de démonstration",
-          );
-          demonstrationOriginMarker = new maplibre.Marker({
-            element: demonstrationOriginElement,
-          })
-            .setLngLat(route.geometry.coordinates[0])
-            .addTo(map);
-        }
         syncOriginMarker();
         observer = new ResizeObserver(() => {
           map?.resize();
@@ -278,7 +237,6 @@ export function PharmacyDetailMap({
       mapRef.current = null;
       createOriginMarkerRef.current = null;
       mapViewRef.current = null;
-      demonstrationOriginMarker?.remove();
       map?.remove();
     };
   }, [

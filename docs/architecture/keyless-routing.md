@@ -30,3 +30,13 @@ the UI can warn when a pharmacy coordinate is far from the road. It does not
 claim live traffic or motorcycle routing. No route, provider failure, malformed
 response, or timeout returns an explicit error; none falls back to fictional
 measurements. The UI retains address, call and external-map hand-off.
+
+The browser first obtains the location locally. A separate, explicit
+"Calculer l’itinéraire avec ma position" action discloses the transfer to
+Wanzila and FOSSGIS and makes the POST request. Car and walking routes display
+the provider geometry, measured distance and duration, steps, and attribution.
+Changing mode recalculates within that consented session; clearing the
+position aborts the pending request and removes the route. Route errors show
+no line or figures, with a retry action and an optional external map hand-off.
+The proximity watcher from #23 runs separately on the device and never sends
+its position fixes to the routing provider.
