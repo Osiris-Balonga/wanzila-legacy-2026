@@ -10,6 +10,7 @@ import {
   updateAdminPharmacyRequestSchema,
 } from "@wanzila/contracts";
 import type { FastifyInstance } from "fastify";
+import { pharmacyMatchKey } from "../../infrastructure/pharmacy-match-key.js";
 import type { Prisma } from "../../generated/prisma/client.js";
 import type { ApiPrismaClient } from "../../infrastructure/prisma.js";
 import {
@@ -95,6 +96,15 @@ function duplicateKey(input: {
     input.address.line,
     input.address.district,
     input.address.arrondissement,
+  );
+}
+
+function isUniqueConflict(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
   );
 }
 
@@ -199,27 +209,40 @@ export function registerAdminPharmacyRoutes(
       ) {
         return sendConflict(reply, "A matching pharmacy already exists");
       }
-      const created = await options.prisma.pharmacy.create({
-        data: {
-          name: input.data.name,
-          address: input.data.address.line,
-          district: input.data.address.district,
-          arrondissement: input.data.address.arrondissement,
-          ...(input.data.phone ? { phone: input.data.phone } : {}),
-          latitude: input.data.coordinates.latitude,
-          longitude: input.data.coordinates.longitude,
-          status: "DRAFT",
-          ...(input.data.recordProvenance
-            ? {
-                recordSource: input.data.recordProvenance.source,
-                recordVerifiedAt: new Date(
-                  input.data.recordProvenance.verifiedAt,
-                ),
-              }
-            : {}),
-        },
-        select: pharmacySelect,
-      });
+      const created = await options.prisma.pharmacy
+        .create({
+          data: {
+            matchKey: pharmacyMatchKey({
+              name: input.data.name,
+              address: input.data.address.line,
+              district: input.data.address.district,
+              arrondissement: input.data.address.arrondissement,
+            }),
+            name: input.data.name,
+            address: input.data.address.line,
+            district: input.data.address.district,
+            arrondissement: input.data.address.arrondissement,
+            ...(input.data.phone ? { phone: input.data.phone } : {}),
+            latitude: input.data.coordinates.latitude,
+            longitude: input.data.coordinates.longitude,
+            status: "DRAFT",
+            ...(input.data.recordProvenance
+              ? {
+                  recordSource: input.data.recordProvenance.source,
+                  recordVerifiedAt: new Date(
+                    input.data.recordProvenance.verifiedAt,
+                  ),
+                }
+              : {}),
+          },
+          select: pharmacySelect,
+        })
+        .catch((error: unknown) => {
+          if (isUniqueConflict(error)) return null;
+          throw error;
+        });
+      if (!created)
+        return sendConflict(reply, "A matching pharmacy already exists");
       return reply.code(201).send({ data: serialize(created) });
     },
   );
@@ -241,56 +264,75 @@ export function registerAdminPharmacyRoutes(
         return sendBadRequest(reply);
       const existing = await findPharmacy(options.prisma, params.data.id);
       if (!existing) return sendNotFound(reply);
-      const updated = await options.prisma.pharmacy.update({
-        where: { id: params.data.id },
-        data: {
-          ...(input.data.name ? { name: input.data.name } : {}),
-          ...(input.data.phone === undefined
-            ? {}
-            : { phone: input.data.phone }),
-          ...(input.data.address
-            ? {
-                address: input.data.address.line,
-                district: input.data.address.district,
-                arrondissement: input.data.address.arrondissement,
-              }
-            : {}),
-          ...(input.data.coordinates
-            ? {
-                latitude: input.data.coordinates.latitude,
-                longitude: input.data.coordinates.longitude,
-              }
-            : {}),
-          ...(input.data.recordProvenance === undefined
-            ? {}
-            : input.data.recordProvenance === null
-              ? { recordSource: null, recordVerifiedAt: null }
-              : {
-                  recordSource: input.data.recordProvenance.source,
-                  recordVerifiedAt: new Date(
-                    input.data.recordProvenance.verifiedAt,
-                  ),
-                }),
-          ...(input.data.photo === undefined
-            ? {}
-            : input.data.photo === null
+      const updated = await options.prisma.pharmacy
+        .update({
+          where: { id: params.data.id },
+          data: {
+            ...(input.data.name || input.data.address
               ? {
-                  photoAssetPath: null,
-                  photoSource: null,
-                  photoCredit: null,
-                  photoRights: null,
-                  photoVerifiedAt: null,
+                  matchKey: pharmacyMatchKey({
+                    name: input.data.name ?? existing.name,
+                    address: input.data.address?.line ?? existing.address,
+                    district: input.data.address?.district ?? existing.district,
+                    arrondissement:
+                      input.data.address?.arrondissement ??
+                      existing.arrondissement,
+                  }),
                 }
-              : {
-                  photoAssetPath: input.data.photo.assetPath,
-                  photoSource: input.data.photo.source,
-                  photoCredit: input.data.photo.credit,
-                  photoRights: input.data.photo.rights,
-                  photoVerifiedAt: new Date(input.data.photo.verifiedAt),
-                }),
-        },
-        select: pharmacySelect,
-      });
+              : {}),
+            ...(input.data.name ? { name: input.data.name } : {}),
+            ...(input.data.phone === undefined
+              ? {}
+              : { phone: input.data.phone }),
+            ...(input.data.address
+              ? {
+                  address: input.data.address.line,
+                  district: input.data.address.district,
+                  arrondissement: input.data.address.arrondissement,
+                }
+              : {}),
+            ...(input.data.coordinates
+              ? {
+                  latitude: input.data.coordinates.latitude,
+                  longitude: input.data.coordinates.longitude,
+                }
+              : {}),
+            ...(input.data.recordProvenance === undefined
+              ? {}
+              : input.data.recordProvenance === null
+                ? { recordSource: null, recordVerifiedAt: null }
+                : {
+                    recordSource: input.data.recordProvenance.source,
+                    recordVerifiedAt: new Date(
+                      input.data.recordProvenance.verifiedAt,
+                    ),
+                  }),
+            ...(input.data.photo === undefined
+              ? {}
+              : input.data.photo === null
+                ? {
+                    photoAssetPath: null,
+                    photoSource: null,
+                    photoCredit: null,
+                    photoRights: null,
+                    photoVerifiedAt: null,
+                  }
+                : {
+                    photoAssetPath: input.data.photo.assetPath,
+                    photoSource: input.data.photo.source,
+                    photoCredit: input.data.photo.credit,
+                    photoRights: input.data.photo.rights,
+                    photoVerifiedAt: new Date(input.data.photo.verifiedAt),
+                  }),
+          },
+          select: pharmacySelect,
+        })
+        .catch((error: unknown) => {
+          if (isUniqueConflict(error)) return null;
+          throw error;
+        });
+      if (!updated)
+        return sendConflict(reply, "A matching pharmacy already exists");
       return { data: serialize(updated) };
     },
   );

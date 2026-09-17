@@ -12,6 +12,7 @@ const environmentSchema = z.object({
     .string()
     .url()
     .default("https://routing.openstreetmap.de"),
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
 });
 
 export function readEnvironment(environment: NodeJS.ProcessEnv) {
@@ -23,5 +24,6 @@ export function readEnvironment(environment: NodeJS.ProcessEnv) {
     serveWeb: value.SERVE_WEB === "true",
     nodeEnvironment: value.NODE_ENV,
     routingBaseUrl: value.ROUTING_BASE_URL,
+    trustedProxyHops: value.TRUSTED_PROXY_HOPS,
   };
 }

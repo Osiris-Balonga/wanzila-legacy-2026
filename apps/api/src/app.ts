@@ -21,6 +21,7 @@ import { registerAdministratorAuthRoutes } from "./modules/admin-auth/routes.js"
 import { registerAdminPharmacyRoutes } from "./modules/admin-pharmacy/routes.js";
 import { registerAdminDutyRoutes } from "./modules/admin-duty/routes.js";
 import { registerAdminAnalyticsRoutes } from "./modules/admin-analytics/routes.js";
+import { registerContributionRoutes } from "./modules/contributions/routes.js";
 import type { AdministratorAuthRouteOptions } from "./modules/admin-auth/routes.js";
 import {
   internalError,
@@ -77,10 +78,16 @@ export interface AppOptions {
   routingFetch?: typeof fetch;
   routingNowMs?: () => number;
   routingTimeoutMs?: number;
+  trustedProxyHops?: number;
 }
 
 export async function createApp(options: AppOptions) {
-  const app = fastify({ logger: options.logger ?? false });
+  const app = fastify({
+    logger: options.logger ?? false,
+    trustProxy: options.trustedProxyHops
+      ? (_address, hop) => hop < options.trustedProxyHops!
+      : false,
+  });
   const prisma =
     options.prisma ??
     (options.databaseUrl ? createPrismaClient(options.databaseUrl) : undefined);
@@ -149,6 +156,11 @@ export async function createApp(options: AppOptions) {
           prisma,
           now,
           sourceFreshnessMaxAgeMs,
+        });
+        registerContributionRoutes(adminApi, {
+          prisma,
+          now,
+          webOrigin: options.webOrigin,
         });
       },
       { prefix: "/api/v1" },
