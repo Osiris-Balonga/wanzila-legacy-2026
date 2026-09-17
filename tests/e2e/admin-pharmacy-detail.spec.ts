@@ -131,6 +131,50 @@ test("detail retains edit, publish and archive interactions", async ({
   await expect(page.getByText("Archivée", { exact: true })).toBeVisible();
 });
 
+test("detail offers a keyboard-reachable path to create a duty with explicit pharmacy selection", async ({
+  page,
+}) => {
+  await mockDetail(page);
+  await page.route("**/api/v1/admin/pharmacies?**", (route) =>
+    route.fulfill({
+      json: {
+        data: [pharmacy],
+        pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
+      },
+    }),
+  );
+  await page.route("**/api/v1/admin/sources?**", (route) =>
+    route.fulfill({
+      json: {
+        data: [],
+        pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0 },
+      },
+    }),
+  );
+  await page.goto(`/admin/pharmacies/${pharmacy.id}`);
+  const addDuty = page.getByRole("link", { name: "Ajouter une garde" });
+  await expect(addDuty).toHaveAttribute("href", "/admin/gardes/nouvelle");
+  await page.getByRole("button", { name: "Archiver" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(addDuty).toBeFocused();
+  expect(
+    await addDuty.evaluate((element) => element.matches(":focus-visible")),
+  ).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/admin\/gardes\/nouvelle$/);
+  await expect(
+    page.getByRole("heading", { name: "Créer une garde" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Aperçu de la garde" }),
+  ).toContainText("Aucune pharmacie sélectionnée");
+  await page.getByRole("combobox", { name: "Pharmacie" }).click();
+  await page.getByRole("option", { name: pharmacy.name }).click();
+  await expect(
+    page.getByRole("complementary", { name: "Aperçu de la garde" }),
+  ).toContainText(pharmacy.name);
+});
+
 test("detail distinguishes loading, not found and retryable error", async ({
   page,
 }) => {
@@ -143,6 +187,9 @@ test("detail distinguishes loading, not found and retryable error", async ({
   await expect(
     page.getByRole("status", { name: "Chargement de la pharmacie" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Ajouter une garde" }),
+  ).toHaveCount(0);
   release();
   await expect(
     page.getByRole("heading", { name: pharmacy.name }),
@@ -157,6 +204,9 @@ test("detail distinguishes loading, not found and retryable error", async ({
     page.getByRole("heading", { name: "Pharmacie introuvable" }),
   ).toBeVisible();
   await expect(
+    page.getByRole("link", { name: "Ajouter une garde" }),
+  ).toHaveCount(0);
+  await expect(
     page.getByRole("link", { name: "Retour aux pharmacies" }),
   ).toBeVisible();
   await page.unrouteAll();
@@ -167,6 +217,21 @@ test("detail distinguishes loading, not found and retryable error", async ({
   await page.reload();
   await expect(page.getByRole("alert")).toContainText("Impossible de charger");
   await expect(page.getByRole("button", { name: "Réessayer" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Ajouter une garde" }),
+  ).toHaveCount(0);
+  await page.unrouteAll();
+  await mockDetail(page, {
+    status: 403,
+    body: { error: { code: "FORBIDDEN", message: "Forbidden" } },
+  });
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText(
+    "Vous n’avez pas l’autorisation requise.",
+  );
+  await expect(
+    page.getByRole("link", { name: "Ajouter une garde" }),
+  ).toHaveCount(0);
 });
 
 test("location keeps its address available when the map provider fails", async ({
@@ -199,6 +264,9 @@ for (const width of [320, 390, 768, 1440, 1586]) {
     await page.setViewportSize({ width, height: width < 500 ? 844 : 992 });
     await mockDetail(page);
     await page.goto(`/admin/pharmacies/${pharmacy.id}`);
+    await expect(
+      page.getByRole("link", { name: "Ajouter une garde" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Localisation", exact: true }),
     ).toBeVisible();
