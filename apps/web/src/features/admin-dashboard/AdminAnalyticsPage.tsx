@@ -1,4 +1,8 @@
-import type { AdminAnalyticsOverviewResponse } from "@wanzila/contracts";
+import type {
+  AdminAnalyticsActivityMetricName,
+  AdminAnalyticsActivityResponse,
+  AdminAnalyticsOverviewResponse,
+} from "@wanzila/contracts";
 import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { DatabaseIcon } from "@phosphor-icons/react/Database";
@@ -13,6 +17,7 @@ import { useState, type ComponentType, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdminActivityMap } from "./AdminActivityMap";
+import { useAdminDashboardActivity } from "./useAdminDashboardActivity";
 import {
   AdminQualityDetailPanels,
   useAdminQualityDetail,
@@ -20,8 +25,8 @@ import {
 import "./admin-analytics.css";
 
 type Overview = AdminAnalyticsOverviewResponse["data"];
-type EventCounts = Overview["events"]["totals"];
-type EventName = keyof EventCounts;
+type Activity = AdminAnalyticsActivityResponse["data"];
+type EventName = AdminAnalyticsActivityMetricName;
 type AnalyticsWindow = "7d" | "30d";
 
 export type AnalyticsPageState =
@@ -218,7 +223,36 @@ function MiniSeries({ values, label }: { values: number[]; label: string }) {
   );
 }
 
-function DashboardMetrics({ overview }: { overview: Overview }) {
+const delta = (value: number) =>
+  `${new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 0,
+    signDisplay: "exceptZero",
+  }).format(value)} %`;
+
+function snapshotTime(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Brazzaville",
+  }).format(new Date(value));
+}
+
+function DashboardMetrics({
+  overview,
+  activity,
+}: {
+  overview: Overview;
+  activity: Activity;
+}) {
+  const snapshotsDiffer =
+    overview.window !== activity.window ||
+    overview.period.from !== activity.period.from ||
+    eventMetrics.some(
+      ({ key }) =>
+        activity.comparisons[key].current !== overview.events.totals[key],
+    );
   return (
     <section
       aria-label="Indicateurs d’activité"
@@ -230,16 +264,35 @@ function DashboardMetrics({ overview }: { overview: Overview }) {
             <span aria-hidden="true" className="analytics-metric__icon">
               <Icon weight="fill" />
             </span>
-            <strong>{count(overview.events.totals[key])}</strong>
+            <strong>{count(activity.comparisons[key].current)}</strong>
             <span>{label}</span>
-            <small>Événements mesurés</small>
-            <MiniSeries
-              label={label}
-              values={overview.events.daily.map((day) => day.counts[key])}
-            />
+            <small className="analytics-metric__delta">
+              {activity.comparisons[key].deltaPercent === null
+                ? "Comparaison indisponible"
+                : `${delta(activity.comparisons[key].deltaPercent)} vs période précédente`}
+            </small>
+            {snapshotsDiffer ? null : (
+              <MiniSeries
+                label={label}
+                values={overview.events.daily.map((day) => day.counts[key])}
+              />
+            )}
           </CardContent>
         </Card>
       ))}
+      <p className="analytics-metrics__context">
+        KPI au {snapshotTime(activity.period.asOf)} · comparaison avec la
+        période précédente de même durée.
+        {snapshotsDiffer ? (
+          <span>
+            {" "}
+            Instantanés distincts : les séries et le tunnel ci-dessous
+            proviennent du rapport au {snapshotTime(overview.period.asOf)}. Les
+            périodes ou les comptes diffèrent ; leurs courbes ne sont pas
+            accolées aux KPI.
+          </span>
+        ) : null}
+      </p>
     </section>
   );
 }
@@ -535,6 +588,10 @@ export function AdminDashboardPage({
   onRetry,
   retrying = false,
 }: AnalyticsPageProps) {
+  const activity = useAdminDashboardActivity(
+    window,
+    state.status === "success" || state.status === "empty",
+  );
   return (
     <div className="admin-analytics">
       <AnalyticsHeader
@@ -551,26 +608,93 @@ export function AdminDashboardPage({
       >
         {(state.status === "success" || state.status === "empty") && (
           <>
-            <DashboardMetrics overview={state.overview} />
+            {activity.state.status === "loading" ? (
+              <p
+                aria-label="Chargement de l’activité"
+                className="analytics-loading analytics-activity-loading"
+                role="status"
+              >
+                Chargement de l’activité…
+              </p>
+            ) : activity.state.status === "auth-required" ? (
+              <div className="analytics-error" role="alert">
+                <WarningCircleIcon aria-hidden="true" weight="fill" />
+                <div>
+                  <h2>Connexion requise</h2>
+                  <p>
+                    Connectez-vous pour consulter les comparaisons et la carte
+                    d’activité.
+                  </p>
+                  <a className="analytics-login-link" href="/admin/connexion">
+                    Aller à la connexion
+                  </a>
+                </div>
+              </div>
+            ) : activity.state.status === "forbidden" ? (
+              <div className="analytics-error" role="alert">
+                <WarningCircleIcon aria-hidden="true" weight="fill" />
+                <div>
+                  <h2>Accès refusé</h2>
+                  <p>
+                    Vous n’avez pas l’autorisation de consulter les comparaisons
+                    et la carte d’activité.
+                  </p>
+                </div>
+              </div>
+            ) : activity.state.status === "error" ? (
+              <div className="analytics-error" role="alert">
+                <WarningCircleIcon aria-hidden="true" weight="fill" />
+                <div>
+                  <h2>Activité indisponible</h2>
+                  <p>
+                    La réponse des comparaisons et de la carte n’a pas pu être
+                    chargée ou validée.
+                  </p>
+                  <Button
+                    className="analytics-primary"
+                    onClick={activity.retry}
+                    type="button"
+                  >
+                    Réessayer
+                  </Button>
+                </div>
+              </div>
+            ) : activity.state.status === "success" ? (
+              <DashboardMetrics
+                activity={activity.state.activity}
+                overview={state.overview}
+              />
+            ) : null}
             <div className="analytics-grid analytics-grid--dashboard-top">
               <Funnel overview={state.overview} />
               <TopPharmacies overview={state.overview} />
               <FilterUsage overview={state.overview} />
             </div>
             <div className="analytics-grid analytics-grid--dashboard-bottom">
-              <section
-                aria-label="Carte d’activité"
-                className="analytics-panel analytics-map-panel"
-              >
-                <div className="analytics-panel__heading">
-                  <h2>Carte d’activité</h2>
-                </div>
-                <p className="analytics-panel__footnote">
-                  Activité cartographique partielle : seuls les points géocodés
-                  du top 5 sont représentés.
-                </p>
-                <AdminActivityMap pharmacies={state.overview.topPharmacies} />
-              </section>
+              {activity.state.status === "success" ? (
+                <section
+                  aria-label="Carte d’activité"
+                  className="analytics-panel analytics-map-panel"
+                >
+                  <div className="analytics-panel__heading">
+                    <div>
+                      <h2>Carte d’activité</h2>
+                      <p>
+                        Consultations de fiches sur les pharmacies publiées
+                        géocodées.
+                      </p>
+                    </div>
+                  </div>
+                  <AdminActivityMap
+                    onPageChange={activity.setPage}
+                    pharmacyActivity={activity.state.activity.pharmacyActivity}
+                  />
+                  <p className="analytics-panel__footnote">
+                    Points statiques agrégés par pharmacie, sans position de
+                    visiteur ni carte de chaleur.
+                  </p>
+                </section>
+              ) : null}
               <DashboardAlerts overview={state.overview} />
               <DashboardQuality overview={state.overview} />
             </div>

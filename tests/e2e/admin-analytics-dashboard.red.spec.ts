@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { analyticsOverviewFixture } from "../../apps/web/src/features/admin-dashboard/testing/analytics-fixtures";
+import { analyticsActivityFixture } from "../../apps/web/src/features/admin-dashboard/testing/activity-fixtures";
 import { qualityDetailFixture } from "../../apps/web/src/features/admin-dashboard/testing/quality-fixtures";
 
 test.use({
@@ -42,6 +43,16 @@ async function mockOverview(
         Number(params.get("sourcePage")),
         Number(params.get("coveragePage")),
       ),
+    });
+  });
+  await page.route("**/api/v1/admin/analytics/activity**", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const window = params.get("window") === "30d" ? "30d" : "7d";
+    await route.fulfill({
+      json: analyticsActivityFixture(window, {
+        empty: options.empty,
+        page: Number(params.get("page")),
+      }),
     });
   });
   await page.route("**/api/v1/admin/analytics/overview**", async (route) => {
@@ -337,25 +348,22 @@ test("reference-selected navigation icons are solid rather than outline-only", a
   ).toHaveAttribute("fill", "currentColor");
 });
 
-test("map uses only real top-pharmacy coordinates, not a synthetic heat layer", async ({
+test("map uses only the paginated static pharmacy coordinates, not a synthetic heat layer", async ({
   page,
 }) => {
   await mockOverview(page);
   await page.goto("/admin");
   const map = page.getByRole("region", { name: "Carte d’activité" });
-  await expect(map).toContainText("Pharmacie des Manguiers");
-  await expect(map.getByRole("listitem")).toContainText([
-    "Pharmacie des Manguiers",
-  ]);
+  await expect(map).toContainText("3 pharmacies cartographiables");
+  await map.getByText("Voir les pharmacies de cette page").click();
+  await expect(map.getByRole("table")).toContainText("Pharmacie Jagger");
   await expect(map.getByRole("button")).toHaveCount(0);
-  await expect(map.locator(".analytics-map-marker")).toHaveAttribute(
+  await expect(map.locator(".analytics-map-marker")).toHaveCount(3);
+  await expect(map.locator(".analytics-map-marker").first()).toHaveAttribute(
     "aria-hidden",
     "true",
   );
-  await expect(map).toContainText(
-    /activité cartographique partielle|activité cartographique limitée/i,
-  );
-  await expect(map).not.toContainText(/position utilisateur|carte de chaleur/i);
+  await expect(map.locator(".maplibregl-heatmap-layer")).toHaveCount(0);
   await expect(map.getByText("Pharmacie indisponible")).toHaveCount(0);
 });
 
