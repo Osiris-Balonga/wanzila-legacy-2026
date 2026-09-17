@@ -36,7 +36,6 @@ const administrationLinks: Array<{
   { href: "/admin/pharmacies", icon: "pharmacy", label: "Pharmacies" },
   { href: "/admin/gardes", icon: "calendar", label: "Gardes" },
   { href: "/admin/contributions", icon: "users", label: "Contributions" },
-  { href: "/admin/signalements", icon: "file", label: "Signalements" },
   { href: "/admin/urgences", icon: "shield", label: "Urgences" },
   { href: "/admin/qualite", icon: "shield", label: "Sources & qualité" },
   { href: "/admin/utilisateurs", icon: "users", label: "Utilisateurs" },

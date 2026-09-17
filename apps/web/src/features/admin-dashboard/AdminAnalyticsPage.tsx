@@ -525,12 +525,6 @@ function DashboardAlerts({ overview }: { overview: Overview }) {
             {count(quality.pendingContributions)} contributions en attente
           </span>
         </div>
-        <div>
-          <WarningCircleIcon aria-hidden="true" weight="fill" />
-          <span>
-            {count(quality.unresolvedReports)} signalements non résolus
-          </span>
-        </div>
         <a href="/admin/qualite">
           <DatabaseIcon aria-hidden="true" weight="fill" />
           <span>
@@ -539,8 +533,8 @@ function DashboardAlerts({ overview }: { overview: Overview }) {
         </a>
       </div>
       <p className="analytics-unavailable">
-        Gestion des contributions et signalements bientôt disponible. Détail des
-        priorités et dates de détection indisponible.
+        Gestion des contributions bientôt disponible. Détail des priorités et
+        dates de détection indisponible.
       </p>
     </section>
   );
@@ -812,15 +806,9 @@ function PendingActions({ overview }: { overview: Overview }) {
             {count(quality.pendingContributions)} contributions en attente
           </span>
         </div>
-        <div>
-          <WarningCircleIcon aria-hidden="true" weight="fill" />
-          <span>
-            {count(quality.unresolvedReports)} signalements non résolus
-          </span>
-        </div>
       </div>
       <p className="analytics-unavailable">
-        Gestion des contributions et signalements bientôt disponible.
+        Gestion des contributions bientôt disponible.
       </p>
     </section>
   );

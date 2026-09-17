@@ -306,7 +306,7 @@
 .pharmacy-detail-actions {
   display: grid;
   gap: 0.45rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 1rem 0 0.35rem;
 }
 
@@ -331,6 +331,13 @@
 .pharmacy-detail-actions [data-slot="button"] svg {
   height: 1.35rem;
   width: 1.35rem;
+}
+.pharmacy-detail-actions .saved-pharmacy-control {
+  display: grid;
+  min-width: 0;
+}
+.pharmacy-detail-actions .saved-pharmacy-control [data-slot="button"] {
+  width: 100%;
 }
 .pharmacy-detail-actions [data-slot="button"]:disabled {
   cursor: not-allowed;
