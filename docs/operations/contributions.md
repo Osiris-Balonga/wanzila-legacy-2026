@@ -1,7 +1,0 @@
-# Contributions publiques — exploitation V1
-
-`POST /api/v1/contributions` accepte au plus 4 Kio et cinq tentatives par heure ou vingt par jour par adresse cliente. Le compteur est en mémoire par instance API : conserver une seule instance pour la démo ou déplacer ce compteur vers un magasin partagé avant de répartir la charge. Les limites s'appliquent aux tentatives, y compris les requêtes invalides.
-
-Par défaut, Fastify utilise l'adresse du pair TCP et n'accorde aucune confiance à `X-Forwarded-For`. Lorsque l'API est joignable **uniquement** à travers un proxy inverse contrôlé, définir `TRUSTED_PROXY_HOPS=1` pour un seul saut (ou le nombre exact de sauts fiables). Ne pas activer cette option si les visiteurs peuvent atteindre directement l'API, car ils pourraient alors falsifier leur adresse déclarée. Vérifier sur le déploiement que deux visiteurs ont bien des limites indépendantes et qu'un en-tête arbitraire ne permet pas de contourner la limite.
-
-Le processus API exécute un nettoyage au démarrage, puis toutes les 24 heures. Il efface les notes libres des propositions âgées de 90 jours, y compris dans l'original et les corrections auditées, et supprime les propositions rejetées 90 jours après leur décision. Ce traitement est idempotent. Les propositions en attente restent en file sans leur note. Vérifier le calendrier et la politique de données avant l'ouverture publique (#13).
