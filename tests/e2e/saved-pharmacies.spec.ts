@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
 const jagger = "00000000-0000-4000-8000-000000000101";
@@ -24,21 +25,23 @@ const pharmacy = (id: string) => ({
 });
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/maps/wanzila-style.json", (route) =>
-    route.fulfill({
-      json: {
-        version: 8,
-        sources: {},
-        layers: [
-          {
-            id: "background",
-            type: "background",
-            paint: { "background-color": "#eef0fb" },
-          },
-        ],
-      },
-    }),
-  );
+  if (process.env.WANZILA_LIVE_MAP !== "1") {
+    await page.route("**/maps/wanzila-style.json", (route) =>
+      route.fulfill({
+        json: {
+          version: 8,
+          sources: {},
+          layers: [
+            {
+              id: "background",
+              type: "background",
+              paint: { "background-color": "#eef0fb" },
+            },
+          ],
+        },
+      }),
+    );
+  }
   await page.route("**/api/v1/pharmacies?**", (route) =>
     route.fulfill({
       json: {
@@ -105,6 +108,19 @@ test("saved page is responsive, has real MapLibre, and links to detail/route", a
     await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
     await expect(page.getByText("Pharmacie Mavré")).toBeVisible();
     await expect(page.getByText("Pas de garde actuellement")).toBeVisible();
+    if (process.env.WANZILA_SAVED_CAPTURE_DIR) {
+      await expect(page.locator(".pharmacy-map__canvas")).toHaveAttribute(
+        "data-map-status",
+        "ready",
+      );
+      await page.screenshot({
+        path: resolve(
+          process.env.WANZILA_SAVED_CAPTURE_DIR,
+          `saved-${width}.png`,
+        ),
+        fullPage: true,
+      });
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width);
@@ -121,7 +137,10 @@ test("404 cleans vanished IDs, while offline IDs remain retryable", async ({
   page,
 }) => {
   await page.addInitScript(
-    ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
+    ({ key, ids }) => {
+      if (!localStorage.getItem(key))
+        localStorage.setItem(key, JSON.stringify(ids));
+    },
     { key: storageKey, ids: [jagger, removed] },
   );
   await page.goto("/enregistrees");
@@ -140,6 +159,47 @@ test("404 cleans vanished IDs, while offline IDs remain retryable", async ({
     await page.evaluate((key) => localStorage.getItem(key), storageKey),
   ).toBe(JSON.stringify([jagger]));
   await page.unroute("**/api/v1/pharmacies/*");
+  await page.route("**/api/v1/pharmacies/*", (route) =>
+    route.fulfill({ json: { data: pharmacy(jagger) } }),
+  );
   await page.getByRole("button", { name: "Réessayer" }).click();
   await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
+});
+
+test("failed local writes do not falsely remove a pharmacy", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
+    { key: storageKey, ids: [jagger] },
+  );
+  await page.goto("/enregistrees");
+  await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
+  await page.evaluate(() => {
+    Storage.prototype.setItem = function () {
+      throw new Error("storage blocked");
+    };
+  });
+  await page
+    .getByRole("button", { name: "Retirer Pharmacie de nuit Jagger" })
+    .click();
+  await expect(
+    page.getByText("Impossible de modifier les enregistrées sur ce navigateur"),
+  ).toBeVisible();
+  await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
+});
+
+test("partial API failure keeps successful cards and identifies partial failure", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
+    { key: storageKey, ids: [jagger, mavre] },
+  );
+  await page.route(`**/api/v1/pharmacies/${mavre}`, (route) => route.abort());
+  await page.goto("/enregistrees");
+  await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
+  await expect(
+    page.getByText("Certaines pharmacies enregistrées sont indisponibles"),
+  ).toBeVisible();
 });

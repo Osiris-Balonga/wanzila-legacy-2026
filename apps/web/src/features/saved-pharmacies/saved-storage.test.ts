@@ -66,4 +66,14 @@ describe("browser-local saved pharmacy IDs", () => {
     expect(readSavedIds(storage)).toEqual([]);
     expect(addSavedId(storage, jagger)).toEqual([jagger]);
   });
+
+  it("does not change the stored IDs when a remove write is rejected", () => {
+    const storage = memoryStorage();
+    addSavedId(storage, jagger);
+    storage.setItem = () => {
+      throw new Error("quota or privacy mode");
+    };
+    expect(removeSavedId(storage, jagger)).toEqual([]);
+    expect(readSavedIds(storage)).toEqual([jagger]);
+  });
 });
