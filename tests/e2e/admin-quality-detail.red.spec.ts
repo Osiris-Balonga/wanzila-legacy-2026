@@ -196,6 +196,56 @@ test("source and coverage pagination remain independent with global totals", asy
   expectPageRequest(requests.at(-1)!, 1, 2);
 });
 
+test("pages that become out of range return to the last valid page without a request loop", async ({
+  page,
+}) => {
+  await mockOverview(page);
+  const requests: URLSearchParams[] = [];
+  let sourceShrunk = false;
+  let coverageShrunk = false;
+  await page.route("**/api/v1/admin/analytics/quality**", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    requests.push(params);
+    const sourcePage = Number(params.get("sourcePage"));
+    const coveragePage = Number(params.get("coveragePage"));
+    if (sourcePage === 2) sourceShrunk = true;
+    if (coveragePage === 2) coverageShrunk = true;
+    const fixture = qualityDetailFixture(sourcePage, coveragePage);
+    if (sourceShrunk) {
+      fixture.data.sources.data =
+        sourcePage === 1 ? qualityDetailFixture().data.sources.data : [];
+      fixture.data.sources.pagination.total = 6;
+      fixture.data.sources.pagination.totalPages = 1;
+      fixture.data.sources.totals.registered = 6;
+      fixture.data.sources.totals.stale = 1;
+    }
+    if (coverageShrunk) {
+      fixture.data.coverage.data =
+        coveragePage === 1 ? qualityDetailFixture().data.coverage.data : [];
+      fixture.data.coverage.pagination.total = 5;
+      fixture.data.coverage.pagination.totalPages = 1;
+      fixture.data.coverage.totals.publishedPharmacies = 40;
+      fixture.data.coverage.totals.withCurrentApprovedDuty = 24;
+      fixture.data.coverage.totals.ratio = 0.6;
+    }
+    await route.fulfill({ json: fixture });
+  });
+  await page.goto("/admin/qualite");
+  const sources = page.getByRole("region", { name: "Sources de planning" });
+  const coverage = page.getByRole("region", { name: "Couverture des gardes" });
+  await expect(sources).toContainText("Ordre national des pharmaciens");
+  await sources.getByRole("button", { name: /page suivante/i }).click();
+  await expect(sources).toContainText("6 sources au total");
+  await expect(sources).toContainText("Ordre national des pharmaciens");
+  expectPageRequest(requests.at(-1)!, 1, 1);
+  expect(requests).toHaveLength(3);
+  await coverage.getByRole("button", { name: /page suivante/i }).click();
+  await expect(coverage).toContainText("40 pharmacies publiées");
+  await expect(coverage).toContainText("Bacongo");
+  expectPageRequest(requests.at(-1)!, 1, 1);
+  expect(requests).toHaveLength(5);
+});
+
 test("changing 7d to 30d changes activity, not the asOf source and coverage snapshot", async ({
   page,
 }) => {
@@ -231,10 +281,13 @@ test("detail request has a distinct loading state and honest empty state", async
   await mockOverview(page);
   await mockDetail(page, { empty: true, hold });
   await page.goto("/admin/qualite");
+  const shared = page.getByRole("region", {
+    name: "Détail des sources et de la couverture",
+  });
+  await expect(shared.getByRole("status")).toContainText(/chargement/i);
+  await expect(shared.getByRole("status")).toHaveCount(1);
   const sources = page.getByRole("region", { name: "Sources de planning" });
   const coverage = page.getByRole("region", { name: "Couverture des gardes" });
-  await expect(sources.getByRole("status")).toContainText(/chargement/i);
-  await expect(coverage.getByRole("status")).toContainText(/chargement/i);
   release();
   await expect(sources).toContainText(/aucune source enregistrée/i);
   await expect(coverage).toContainText(/aucune pharmacie publiée/i);
@@ -247,30 +300,31 @@ for (const status of [401, 403, 500] as const) {
     await mockOverview(page);
     await mockDetail(page, { status });
     await page.goto("/admin/qualite");
-    const sources = page.getByRole("region", { name: "Sources de planning" });
-    const coverage = page.getByRole("region", {
-      name: "Couverture des gardes",
+    const shared = page.getByRole("region", {
+      name: "Détail des sources et de la couverture",
     });
-    for (const panel of [sources, coverage]) {
-      const alert = panel.getByRole("alert");
-      await expect(alert).toContainText(
-        status === 401
-          ? /connexion requise/i
-          : status === 403
-            ? /accès refusé/i
-            : /indisponible/i,
-      );
-      if (status === 401) {
-        await expect(
-          alert.getByRole("link", { name: /connexion/i }),
-        ).toHaveAttribute("href", "/admin/connexion");
-      } else if (status === 500) {
-        await expect(
-          alert.getByRole("button", { name: /réessayer/i }),
-        ).toBeVisible();
-      } else {
-        await expect(alert.getByRole("button")).toHaveCount(0);
-      }
+    const alert = shared.getByRole("alert");
+    await expect(alert).toContainText(
+      status === 401
+        ? /connexion requise/i
+        : status === 403
+          ? /accès refusé/i
+          : /indisponible/i,
+    );
+    await expect(page.getByRole("alert")).toHaveCount(1);
+    if (status === 401) {
+      await expect(
+        alert.getByRole("link", { name: /connexion/i }),
+      ).toHaveAttribute("href", "/admin/connexion");
+    } else if (status === 500) {
+      await expect(
+        alert.getByRole("button", { name: /réessayer/i }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /réessayer/i }),
+      ).toHaveCount(1);
+    } else {
+      await expect(alert.getByRole("button")).toHaveCount(0);
     }
   });
 }
@@ -281,12 +335,14 @@ test("an invalid #61 payload is rejected by Zod and remains retryable", async ({
   await mockOverview(page);
   await mockDetail(page, { malformed: true });
   await page.goto("/admin/qualite");
-  const sources = page.getByRole("region", { name: "Sources de planning" });
-  await expect(sources.getByRole("alert")).toContainText(/indisponible/i);
+  const shared = page.getByRole("region", {
+    name: "Détail des sources et de la couverture",
+  });
+  await expect(shared.getByRole("alert")).toContainText(/indisponible/i);
   await expect(
-    sources.getByRole("button", { name: /réessayer/i }),
+    shared.getByRole("button", { name: /réessayer/i }),
   ).toBeVisible();
-  await expect(sources).not.toContainText("Ordre national des pharmaciens");
+  await expect(shared).not.toContainText("Ordre national des pharmaciens");
 });
 
 test("detail retry refetches and recovers without reloading the overview", async ({
@@ -306,9 +362,12 @@ test("detail retry refetches and recovers without reloading the overview", async
     );
   });
   await page.goto("/admin/qualite");
+  const shared = page.getByRole("region", {
+    name: "Détail des sources et de la couverture",
+  });
   const sources = page.getByRole("region", { name: "Sources de planning" });
-  await expect(sources.getByRole("alert")).toContainText(/indisponible/i);
-  await sources.getByRole("button", { name: "Réessayer" }).click();
+  await expect(shared.getByRole("alert")).toContainText(/indisponible/i);
+  await shared.getByRole("button", { name: "Réessayer" }).click();
   await expect(sources).toContainText("Ordre national des pharmaciens");
   expect(attempts).toBe(2);
   expect(overviewRequests).toEqual(["7d"]);

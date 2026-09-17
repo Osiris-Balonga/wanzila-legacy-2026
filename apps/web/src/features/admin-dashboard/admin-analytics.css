@@ -652,6 +652,15 @@
   padding: 0.85rem;
 }
 
+.analytics-detail-shared-state {
+  grid-column: 1 / -1;
+}
+
+.analytics-detail-shared-state h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
 .analytics-detail-state strong {
   color: var(--ink);
 }

@@ -123,12 +123,10 @@ function SourcesPanel({
   state,
   sourcePage,
   onSourcePageChange,
-  onRetry,
 }: {
   state: DetailState;
   sourcePage: number;
   onSourcePageChange: (value: number) => void;
-  onRetry: () => void;
 }) {
   const detail = state.status === "success" ? state.detail : null;
   const sources = detail?.sources;
@@ -140,7 +138,6 @@ function SourcesPanel({
           <p>Sources enregistrées et gardes en cours attribuées.</p>
         </div>
       </div>
-      <DetailMessage state={state} onRetry={onRetry} />
       {detail && sources && (
         <>
           <p className="analytics-detail-snapshot">
@@ -240,12 +237,10 @@ function CoveragePanel({
   state,
   coveragePage,
   onCoveragePageChange,
-  onRetry,
 }: {
   state: DetailState;
   coveragePage: number;
   onCoveragePageChange: (value: number) => void;
-  onRetry: () => void;
 }) {
   const detail = state.status === "success" ? state.detail : null;
   const coverage = detail?.coverage;
@@ -257,7 +252,6 @@ function CoveragePanel({
           <p>Pharmacies publiées par arrondissement, à l’instant du rapport.</p>
         </div>
       </div>
-      <DetailMessage state={state} onRetry={onRetry} />
       {detail && coverage && (
         <>
           <p className="analytics-detail-snapshot">
@@ -363,7 +357,26 @@ export function useAdminQualityDetail(enabled: boolean) {
             parsed.data.data.coverage.pagination.page === coveragePage &&
             parsed.data.data.coverage.pagination.pageSize === coveragePageSize
           ) {
-            next = { status: "success", detail: parsed.data.data };
+            const detail = parsed.data.data;
+            const lastSourcePage = Math.max(
+              1,
+              detail.sources.pagination.totalPages,
+            );
+            const lastCoveragePage = Math.max(
+              1,
+              detail.coverage.pagination.totalPages,
+            );
+            if (
+              sourcePage > lastSourcePage ||
+              coveragePage > lastCoveragePage
+            ) {
+              if (requestVersion.current === version) {
+                setSourcePage(Math.min(sourcePage, lastSourcePage));
+                setCoveragePage(Math.min(coveragePage, lastCoveragePage));
+              }
+              return;
+            }
+            next = { status: "success", detail };
           }
         }
       } catch {
@@ -395,10 +408,20 @@ export function AdminQualityDetailPanels({
 }: {
   controller: ReturnType<typeof useAdminQualityDetail>;
 }) {
+  if (controller.state.status !== "success") {
+    return (
+      <section
+        aria-label="Détail des sources et de la couverture"
+        className="analytics-panel analytics-detail-shared-state"
+      >
+        <h2>Sources de planning et couverture des gardes</h2>
+        <DetailMessage state={controller.state} onRetry={controller.retry} />
+      </section>
+    );
+  }
   return (
     <>
       <SourcesPanel
-        onRetry={controller.retry}
         onSourcePageChange={controller.setSourcePage}
         sourcePage={controller.sourcePage}
         state={controller.state}
@@ -406,7 +429,6 @@ export function AdminQualityDetailPanels({
       <CoveragePanel
         coveragePage={controller.coveragePage}
         onCoveragePageChange={controller.setCoveragePage}
-        onRetry={controller.retry}
         state={controller.state}
       />
     </>

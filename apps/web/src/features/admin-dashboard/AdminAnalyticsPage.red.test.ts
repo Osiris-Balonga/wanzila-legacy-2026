@@ -176,7 +176,7 @@ describe("issue #55 data-quality component contract (RED)", () => {
 
     expect(markup).toContain("Sources &amp; qualité des données");
     expect(markup).toContain("Sources de planning");
-    expect(markup).toContain("Couverture des gardes");
+    expect(markup).toMatch(/couverture des gardes/i);
     expect(markup).toContain("Qualité des données");
     expect(markup).toContain("Anomalies à traiter");
     expect(markup).toContain("Actions en attente");
