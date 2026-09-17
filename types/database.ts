@@ -18,7 +18,8 @@ export interface Pharmacy {
   borough?: string | null
   phone?: string | null
   photo_url?: string | null
-  maps_url?: string | null
+  photo_credit?: string | null
+  opening_hours?: { daily_start: string; daily_end: string; source_url: string } | null
   data_origin?: 'osm' | 'provided'
   category: PharmacyCategory
   duty_status: DutyStatus
@@ -29,6 +30,7 @@ export interface Pharmacy {
 export interface SearchFilters {
   query: string
   category: 'all' | PharmacyCategory | 'on_duty'
+  availability?: 'all' | 'open' | 'closed' | 'unknown'
   neighborhood?: string
   borough?: string
 }

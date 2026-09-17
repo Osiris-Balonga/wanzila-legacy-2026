@@ -1,45 +1,46 @@
 'use client'
 
 import { useEffect } from 'react'
-import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MAP_CONFIG } from '@/lib/constants'
-import { hasCoordinates } from '@/lib/pharmacies'
+import { getAvailability, hasCoordinates } from '@/lib/pharmacies'
 import type { MapProps } from './map'
 
-const marker = (selected: boolean) => L.divIcon({
-  className: `wanzila-pin${selected ? ' is-selected' : ''}`,
-  html: '<span class="wanzila-pin__head"><span class="wanzila-pin__cross">+</span></span>',
-  iconSize: [42, 52], iconAnchor: [21, 50],
+const marker = (pharmacy: MapProps['pharmacies'][number], selected: boolean) => L.icon({
+  iconUrl: pharmacy.category === 'night_pharmacy' ? '/markers/night.webp' : '/markers/day.webp',
+  className: `wanzila-pin${selected ? ' is-selected' : ''}${getAvailability(pharmacy) === 'closed' ? ' is-closed' : ''}`,
+  iconSize: [58, 60], iconAnchor: [29, 53],
 })
-const userIcon = L.divIcon({
-  className: 'wanzila-user-pin',
-  html: '<span></span>',
-  iconSize: [32, 32], iconAnchor: [16, 16],
-})
+const userIcon = L.icon({ iconUrl: '/markers/user.webp', className: 'wanzila-user-pin', iconSize: [58, 60], iconAnchor: [29, 53] })
 
-function MapCamera({ route, pharmacies, focusPharmacy, resetKey }: Pick<MapProps, 'route' | 'pharmacies' | 'focusPharmacy' | 'resetKey'>) {
+function MapCamera({ route, pharmacies, resetKey, restoreView }: Pick<MapProps, 'route' | 'pharmacies' | 'resetKey' | 'restoreView'>) {
   const map = useMap()
   useEffect(() => { map.invalidateSize() }, [map])
   useEffect(() => {
-    if (route?.coordinates && route.coordinates.length > 1) {
+    if (restoreView) {
+      map.flyTo(restoreView.center, restoreView.zoom, { duration: 0.35 })
+    } else if (route?.coordinates && route.coordinates.length > 1) {
       const mobile = map.getSize().x < 720
       map.fitBounds(L.latLngBounds(route.coordinates), mobile
         ? { paddingTopLeft: [30, 125], paddingBottomRight: [30, 305], maxZoom: 15 }
         : { padding: [56, 56], maxZoom: 16 })
-    } else if (focusPharmacy && hasCoordinates(focusPharmacy)) {
-      map.flyTo([focusPharmacy.latitude, focusPharmacy.longitude], Math.max(map.getZoom(), 14), { duration: 0.45 })
     } else {
       const points = pharmacies.filter(hasCoordinates)
       if (map.getSize().x < 720 && points.length > 5) map.setView([-4.263, 15.268], 13, { animate: false })
       else if (points.length) map.fitBounds(L.latLngBounds(points.map(p => [p.latitude, p.longitude])), { padding: [48, 48], maxZoom: 14 })
     }
-  }, [map, route, pharmacies, focusPharmacy, resetKey])
+  }, [map, route, pharmacies, resetKey, restoreView])
   return null
 }
 
-export function LeafletMap({ pharmacies, route, userPosition, height = '100%', className = '', onMarkerClick, focusPharmacy, tileStyle = 'standard', resetKey }: MapProps) {
+function ViewportReporter({ onViewportChange }: Pick<MapProps, 'onViewportChange'>) {
+  const map = useMapEvents({ moveend: () => { const center = map.getCenter(); onViewportChange?.({ center: [center.lat, center.lng], zoom: map.getZoom() }) } })
+  return null
+}
+
+export function LeafletMap({ pharmacies, route, userPosition, height = '100%', className = '', onMarkerClick, focusPharmacy, tileStyle = 'standard', resetKey, restoreView, onViewportChange }: MapProps) {
   return <div className={className} style={{ height }}>
     <MapContainer center={MAP_CONFIG.defaultCenter} zoom={MAP_CONFIG.defaultZoom} className="h-full w-full" zoomControl={false}>
       <TileLayer
@@ -49,11 +50,12 @@ export function LeafletMap({ pharmacies, route, userPosition, height = '100%', c
           : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="https://www.hotosm.org/">HOT</a>'}
         url={tileStyle === 'standard' ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' : 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'}
       />
-      <MapCamera pharmacies={pharmacies} route={route} focusPharmacy={focusPharmacy} resetKey={resetKey} />
+      <MapCamera pharmacies={pharmacies} route={route} resetKey={resetKey} restoreView={restoreView} />
+      <ViewportReporter onViewportChange={onViewportChange} />
       {pharmacies.filter(hasCoordinates).map(pharmacy => <Marker
         key={pharmacy.id}
         position={[pharmacy.latitude, pharmacy.longitude]}
-        icon={marker(pharmacy.id === focusPharmacy?.id)}
+        icon={marker(pharmacy, pharmacy.id === focusPharmacy?.id)}
         eventHandlers={{ click: () => onMarkerClick?.(pharmacy) }}
       />)}
       {userPosition && <Marker position={userPosition} icon={userIcon} />}

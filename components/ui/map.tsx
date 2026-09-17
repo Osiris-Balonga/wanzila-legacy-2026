@@ -14,6 +14,8 @@ export interface MapProps {
   focusPharmacy?: Pharmacy | null
   tileStyle?: 'standard' | 'humanitarian'
   resetKey?: number
+  restoreView?: { center: [number, number]; zoom: number; key: number } | null
+  onViewportChange?: (view: { center: [number, number]; zoom: number }) => void
 }
 
 export const Map = dynamic<MapProps>(() => import('./leaflet-map').then(module => module.LeafletMap), {

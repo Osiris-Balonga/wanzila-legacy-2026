@@ -30,7 +30,6 @@ for (const record of supplied.pharmacies) {
     borough: record.arrondissement || null,
     phone: record.telephone || null,
     photo_url: null,
-    maps_url: record.lien_maps_secours || null,
     data_origin: 'provided',
     category: 'pharmacy',
     duty_status: 'unverified',

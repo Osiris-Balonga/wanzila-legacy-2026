@@ -14,6 +14,19 @@ export function isOnDuty(pharmacy: Pharmacy, at = new Date()): boolean {
   )
 }
 
+export function getAvailability(pharmacy: Pharmacy, at = new Date()): 'open' | 'closed' | 'unknown' {
+  if (isOnDuty(pharmacy, at)) return 'open'
+  const hours = pharmacy.opening_hours
+  if (!hours) return 'unknown'
+  const current = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Brazzaville', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)
+  const toMinutes = (value: string) => { const [hour, minute] = value.split(':').map(Number); return hour * 60 + minute }
+  const now = toMinutes(current)
+  const start = toMinutes(hours.daily_start)
+  const end = toMinutes(hours.daily_end)
+  if (![now, start, end].every(Number.isFinite)) return 'unknown'
+  return start < end ? (now >= start && now < end ? 'open' : 'closed') : (now >= start || now < end ? 'open' : 'closed')
+}
+
 export function filterPharmacies(pharmacies: Pharmacy[], filters: SearchFilters): Pharmacy[] {
   const query = filters.query.trim().toLocaleLowerCase('fr')
   return pharmacies.filter(pharmacy => {
@@ -22,6 +35,7 @@ export function filterPharmacies(pharmacies: Pharmacy[], filters: SearchFilters)
     const matchesCategory = filters.category === 'all'
       || (filters.category === 'on_duty' ? isOnDuty(pharmacy) : pharmacy.category === filters.category)
     return matchesQuery && matchesCategory
+      && (!filters.availability || filters.availability === 'all' || getAvailability(pharmacy) === filters.availability)
       && (!filters.neighborhood || pharmacy.neighborhood === filters.neighborhood)
       && (!filters.borough || pharmacy.borough === filters.borough)
   })
