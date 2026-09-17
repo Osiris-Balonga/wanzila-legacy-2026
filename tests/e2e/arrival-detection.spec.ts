@@ -276,6 +276,33 @@ test("GPS failure permits a clearly declared arrival; explicit stop has its own 
   ]);
 });
 
+test("a browser without GPS can declare arrival, while external directions remain available", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  const { attempts } = await mockAttempts(page);
+  await page.goto(`/pharmacies/${id}/navigation`);
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await expect(
+    page.getByText(/ne prend pas en charge la géolocalisation/i),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /ouvrir l’itinéraire dans google maps/i }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Je suis arrivé" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Arrivée déclarée" }),
+  ).toBeVisible();
+  expect([...attempts.values()][0]?.outcome).toBe("USER_DECLARED");
+});
+
 test("leaving the page leaves an unknown outcome, never a presumed failure", async ({
   page,
 }) => {
@@ -373,7 +400,7 @@ test("mobile and desktop outcome states retain layout without horizontal overflo
     .click();
   await expect.poll(async () => (await witness(page)).calls).toBe(1);
   await emitPosition(page, -4.2646, 15.2429);
-  for (const width of [390, 1440]) {
+  for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(
       page.getByRole("heading", { name: /suivi d’arrivée en cours/i }),
