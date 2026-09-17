@@ -217,6 +217,7 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
             <Button
               disabled={pending}
               onClick={() => void transition("publish")}
+              variant="outline"
             >
               Publier
             </Button>
@@ -249,6 +250,11 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
               </AlertDialogContent>
             </AlertDialog>
           )}
+          <Button asChild>
+            <a href="/admin/gardes/nouvelle">
+              <CalendarDays aria-hidden="true" /> Ajouter une garde
+            </a>
+          </Button>
         </div>
       </header>
       {mutationError && (
