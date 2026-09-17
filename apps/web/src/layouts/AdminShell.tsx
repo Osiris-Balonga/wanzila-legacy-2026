@@ -96,8 +96,7 @@ export function AdminShell({ pathname }: AdminShellProps) {
   }
 
   const isPharmacyRoute = pathname.startsWith("/admin/pharmacies");
-  const isDutyRoute =
-    pathname === "/admin/gardes" || pathname === "/admin/gardes/nouvelle";
+  const isDutyRoute = pathname.startsWith("/admin/gardes");
   const signOut = async () => {
     await fetch("/api/v1/admin/auth/sign-out", {
       method: "POST",

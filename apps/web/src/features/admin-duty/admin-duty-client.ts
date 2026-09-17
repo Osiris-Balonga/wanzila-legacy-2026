@@ -1,12 +1,16 @@
 import {
   adminDutyListResponseSchema,
+  adminDutyRevisionListResponseSchema,
+  adminDutyRevisionResponseSchema,
   adminDutyResponseSchema,
   adminDutySummaryResponseSchema,
   adminPharmacyListResponseSchema,
   adminPharmacyResponseSchema,
   adminScheduleSourceListResponseSchema,
   createAdminDutyRequestSchema,
+  createAdminDutyRevisionRequestSchema,
   type AdminDuty,
+  type AdminDutyRevision,
   type AdminPharmacy,
   type AdminScheduleSource,
 } from "@wanzila/contracts";
@@ -15,6 +19,9 @@ export type DutySummary = ReturnType<
   typeof adminDutySummaryResponseSchema.parse
 >["data"];
 type Pagination = DutyList["pagination"];
+type RevisionList = ReturnType<
+  typeof adminDutyRevisionListResponseSchema.parse
+>;
 
 export type DutyDirectory = {
   duties: AdminDuty[];
@@ -155,6 +162,56 @@ export async function createDuty(input: {
     await request("/admin/duties", {
       method: "POST",
       body: JSON.stringify(createAdminDutyRequestSchema.parse(input)),
+    }),
+  ).data;
+}
+
+export async function loadDuty(id: string): Promise<AdminDuty> {
+  return adminDutyResponseSchema.parse(await request(`/admin/duties/${id}`))
+    .data;
+}
+
+export async function loadDutyPharmacy(id: string): Promise<AdminPharmacy> {
+  return adminPharmacyResponseSchema.parse(
+    await request(`/admin/pharmacies/${id}`),
+  ).data;
+}
+
+export async function loadDutyRevisions(
+  id: string,
+  page: number,
+): Promise<RevisionList> {
+  return adminDutyRevisionListResponseSchema.parse(
+    await request(`/admin/duties/${id}/revisions?page=${page}&pageSize=10`),
+  );
+}
+
+export async function submitDutyRevision(
+  id: string,
+  input: {
+    sourceId: string | null;
+    startsAt: string;
+    endsAt: string;
+    note: string;
+  },
+): Promise<AdminDutyRevision> {
+  return adminDutyRevisionResponseSchema.parse(
+    await request(`/admin/duties/${id}/revisions`, {
+      method: "POST",
+      body: JSON.stringify(createAdminDutyRevisionRequestSchema.parse(input)),
+    }),
+  ).data;
+}
+
+export async function reviewDutyRevision(
+  id: string,
+  revisionId: string,
+  action: "approve" | "reject",
+): Promise<AdminDutyRevision> {
+  return adminDutyRevisionResponseSchema.parse(
+    await request(`/admin/duties/${id}/revisions/${revisionId}/${action}`, {
+      method: "POST",
+      body: JSON.stringify({}),
     }),
   ).data;
 }
