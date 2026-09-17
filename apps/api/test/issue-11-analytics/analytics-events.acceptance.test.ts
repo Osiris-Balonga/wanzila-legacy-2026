@@ -194,6 +194,10 @@ class AnalyticsPrismaStub {
     },
   };
 
+  readonly routeAttempt = {
+    deleteMany: () => Promise.resolve({ count: 0 }),
+  };
+
   async $disconnect(): Promise<void> {}
 
   asPrisma(): ApiPrismaClient {

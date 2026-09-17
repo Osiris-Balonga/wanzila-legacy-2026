@@ -88,6 +88,24 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/analytics/events", (route) =>
     route.fulfill({ status: 202, json: { data: {} } }),
   );
+  await page.route("**/api/v1/route-attempts**", (route) => {
+    const body = route.request().postDataJSON() as Record<string, string>;
+    const attemptId =
+      body.attemptId ??
+      new URL(route.request().url()).pathname.split("/").at(-2);
+    return route.fulfill({
+      status: route.request().method() === "POST" ? 201 : 200,
+      json: {
+        data: {
+          attemptId,
+          pharmacyId: id,
+          outcome: body.outcome ?? "UNKNOWN",
+          startedAt: "2026-09-17T12:00:00.000Z",
+          resolvedAt: body.outcome ? "2026-09-17T12:01:00.000Z" : null,
+        },
+      },
+    });
+  });
 });
 
 test("route is calculated only after location and transmission consent", async ({
@@ -193,7 +211,7 @@ test("route is calculated only after location and transmission consent", async (
     } as GeolocationPosition),
   );
   await expect(
-    page.getByRole("heading", { name: /arrivée à proximité/i }),
+    page.getByRole("heading", { name: /déjà à proximité/i }),
   ).toBeVisible();
   await expect(page.locator(".route-preview-map-origin--current")).toHaveCount(
     0,

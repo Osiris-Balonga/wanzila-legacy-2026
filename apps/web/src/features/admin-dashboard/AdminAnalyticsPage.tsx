@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdminActivityMap } from "./AdminActivityMap";
 import { useAdminDashboardActivity } from "./useAdminDashboardActivity";
+import { useAdminRouteOutcomes } from "./useAdminRouteOutcomes";
 import {
   AdminQualityDetailPanels,
   useAdminQualityDetail,
@@ -586,6 +587,10 @@ export function AdminDashboardPage({
     window,
     state.status === "success" || state.status === "empty",
   );
+  const routeOutcomes = useAdminRouteOutcomes(
+    window,
+    state.status === "success" || state.status === "empty",
+  );
   return (
     <div className="admin-analytics">
       <AnalyticsHeader
@@ -664,6 +669,73 @@ export function AdminDashboardPage({
               <TopPharmacies overview={state.overview} />
               <FilterUsage overview={state.overview} />
             </div>
+            <section
+              aria-label="Résultats des trajets"
+              className="analytics-panel analytics-route-outcomes"
+            >
+              <div className="analytics-panel__heading">
+                <div>
+                  <h2>Résultats des trajets</h2>
+                  <p>
+                    Tentatives commencées dans la période, une issue par
+                    tentative.
+                  </p>
+                </div>
+              </div>
+              {routeOutcomes.state.status === "loading" ? (
+                <p role="status">Chargement des résultats…</p>
+              ) : routeOutcomes.state.status === "error" ? (
+                <div role="status">
+                  <p>Résultats indisponibles.</p>
+                  <Button
+                    onClick={routeOutcomes.retry}
+                    type="button"
+                    variant="outline"
+                  >
+                    Réessayer
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <dl>
+                    <div>
+                      <dt>Démarrés</dt>
+                      <dd>{count(routeOutcomes.state.data.counts.started)}</dd>
+                    </div>
+                    <div>
+                      <dt>Arrivée GPS</dt>
+                      <dd>
+                        {count(routeOutcomes.state.data.counts.gpsConfirmed)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Arrivée déclarée</dt>
+                      <dd>
+                        {count(routeOutcomes.state.data.counts.userDeclared)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Arrêt explicite</dt>
+                      <dd>{count(routeOutcomes.state.data.counts.stopped)}</dd>
+                    </div>
+                    <div>
+                      <dt>Déjà à proximité</dt>
+                      <dd>
+                        {count(routeOutcomes.state.data.counts.alreadyNearby)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Issue inconnue</dt>
+                      <dd>{count(routeOutcomes.state.data.counts.unknown)}</dd>
+                    </div>
+                  </dl>
+                  <p className="analytics-panel__footnote">
+                    Inconnu signifie absence de confirmation, notamment si la
+                    page est quittée. Ce n’est pas un trajet échoué.
+                  </p>
+                </>
+              )}
+            </section>
             <div className="analytics-grid analytics-grid--dashboard-bottom">
               {activity.state.status === "success" ? (
                 <section

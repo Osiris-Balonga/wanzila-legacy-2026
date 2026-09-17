@@ -147,6 +147,13 @@
   width: 1.1rem;
 }
 
+.arrival-controls__declare[data-slot="button"] {
+  border-radius: 999px;
+  margin-top: 0.55rem;
+  min-height: 2.9rem;
+  width: 100%;
+}
+
 @media (min-width: 48rem) {
   .arrival-map-banner {
     left: max(1.5rem, calc((100% - 44rem) / 2));

@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 const modulePath = "./arrival-tracker.js";
 type Point = { latitude: number; longitude: number };
 type State =
-  | { status: "idle" | "requesting" | "cancelled" | "arrived" }
+  | {
+      status:
+        "idle" | "requesting" | "cancelled" | "arrived" | "already-nearby";
+    }
   | { status: "active"; distanceMeters: number; arrivalUncertain?: boolean }
   | { status: "denied" | "timeout" | "unavailable" | "unsupported" };
 type Position = { coords: Point & { accuracy: number } };
@@ -24,6 +27,7 @@ type TrackerModule = {
     onPosition?: (position: Point | null) => void;
     onStart?: () => void;
     onArrival?: () => void;
+    onAlreadyNearby?: () => void;
   }) => Tracker;
 };
 
@@ -184,16 +188,18 @@ describe("explicit arrival watch lifecycle", () => {
     tracker.dispose();
   });
 
-  it("keeps watching a centered but imprecise fix, then confirms one sufficiently precise fix", async () => {
+  it("treats an imprecise near fix followed by a reliable near fix as already nearby", async () => {
     const { createArrivalTracker } = await subject();
     const { geo, callbacks } = createGeo();
     const states: State[] = [];
     const onArrival = vi.fn();
+    const onAlreadyNearby = vi.fn();
     createArrivalTracker({
       geolocation: geo,
       destination,
       onState: (state) => states.push(state),
       onArrival,
+      onAlreadyNearby,
     }).start();
     callbacks.success?.(fix(destination, 1000));
     expect(states.at(-1)).toMatchObject({
@@ -203,8 +209,9 @@ describe("explicit arrival watch lifecycle", () => {
     expect(onArrival).not.toHaveBeenCalled();
     expect(geo.clearWatch).not.toHaveBeenCalled();
     callbacks.success?.(fix(destination, 50));
-    expect(states.at(-1)).toEqual({ status: "arrived" });
-    expect(onArrival).toHaveBeenCalledTimes(1);
+    expect(states.at(-1)).toEqual({ status: "already-nearby" });
+    expect(onAlreadyNearby).toHaveBeenCalledTimes(1);
+    expect(onArrival).not.toHaveBeenCalled();
     expect(geo.clearWatch).toHaveBeenCalledExactlyOnceWith(7);
   });
 
@@ -230,7 +237,7 @@ describe("explicit arrival watch lifecycle", () => {
     }
   });
 
-  it("emits start before a synchronous arrival and never starts without API support", async () => {
+  it("marks a synchronous near fix as already nearby and never starts without API support", async () => {
     const { createArrivalTracker } = await subject();
     const events: string[] = [];
     const clearWatch = vi.fn();
@@ -246,16 +253,17 @@ describe("explicit arrival watch lifecycle", () => {
       onState: vi.fn(),
       onStart: () => events.push("route_started"),
       onArrival: () => events.push("arrival_confirmed"),
+      onAlreadyNearby: () => events.push("already_nearby"),
     });
     tracker.start();
-    expect(events).toEqual(["route_started", "arrival_confirmed"]);
+    expect(events).toEqual(["route_started", "already_nearby"]);
     expect(clearWatch).toHaveBeenCalledExactlyOnceWith(7);
     tracker.start();
     expect(events).toEqual([
       "route_started",
-      "arrival_confirmed",
+      "already_nearby",
       "route_started",
-      "arrival_confirmed",
+      "already_nearby",
     ]);
     const unsupportedEvents: string[] = [];
     createArrivalTracker({

@@ -498,6 +498,29 @@
   margin: 0.3rem 0;
 }
 
+.route-preview-outcome-status,
+.route-preview-outcome-error {
+  border-radius: 0.7rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin: 0.75rem 0 0;
+  padding: 0.7rem;
+}
+
+.route-preview-outcome-status {
+  background: #eefaf5;
+  color: #075f46;
+}
+
+.route-preview-outcome-error {
+  background: #fff3e9;
+  color: #723f11;
+}
+
+.route-preview-outcome-error p {
+  margin: 0 0 0.5rem;
+}
+
 .route-preview-external[data-slot="button"] {
   border-radius: 999px;
   color: #4f24d6;
