@@ -14,15 +14,19 @@ import {
   X,
 } from "lucide-react";
 import type { PublicPharmacy } from "@wanzila/contracts";
+import { DEFAULT_ARRIVAL_RADIUS_METERS } from "@wanzila/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { createAnalyticsTransport } from "@/analytics/transport";
 import {
   createPharmacyDetailClient,
   type PharmacyDetailState,
 } from "../pharmacy-detail/pharmacy-detail-client";
 import { PharmacyDetailMap } from "../pharmacy-detail/PharmacyDetailMap";
+import { ArrivalControls, ArrivalMapBanner } from "./ArrivalControls";
+import { createArrivalTracker, type ArrivalState } from "./arrival-tracker";
 import {
   buildExternalDirectionsUrl,
   classifyGeolocationError,
@@ -51,13 +55,32 @@ const modeOptions: {
 ];
 
 function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
+  const analytics = useMemo(
+    () => createAnalyticsTransport({ endpoint: "/api/v1/analytics/events" }),
+    [],
+  );
   const [mode, setMode] = useState<TravelMode>("car");
   const [location, setLocation] = useState<LocationState>({ status: "idle" });
+  const [arrivalState, setArrivalState] = useState<ArrivalState>({
+    status: "idle",
+  });
+  const [arrivalPosition, setArrivalPosition] = useState<Coordinates | null>(
+    null,
+  );
+  const arrivalTracker = useRef<ReturnType<typeof createArrivalTracker> | null>(
+    null,
+  );
   const [copyFeedback, setCopyFeedback] = useState("");
   const requestVersion = useRef(0);
   const destination = hasUsableCoordinates(pharmacy.coordinates)
     ? pharmacy.coordinates
     : undefined;
+  const destinationLatitude = destination?.latitude;
+  const destinationLongitude = destination?.longitude;
+  const showingNavigation =
+    arrivalState.status === "requesting" ||
+    arrivalState.status === "active" ||
+    arrivalState.status === "arrived";
   const route = getDemonstrationRoute(pharmacy, mode);
   const directionsHref = buildExternalDirectionsUrl(destination, mode);
   const address = Array.from(
@@ -76,6 +99,71 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
     },
     [],
   );
+
+  useEffect(() => {
+    if (destinationLatitude === undefined || destinationLongitude === undefined)
+      return;
+    const tracker = createArrivalTracker({
+      geolocation: navigator.geolocation,
+      destination: {
+        latitude: destinationLatitude,
+        longitude: destinationLongitude,
+      },
+      radiusMeters: DEFAULT_ARRIVAL_RADIUS_METERS,
+      onState: setArrivalState,
+      onPosition: setArrivalPosition,
+      onStart: () =>
+        analytics.track({
+          schemaVersion: 1,
+          name: "route_started",
+          properties: { pharmacyId: pharmacy.id },
+        }),
+      onArrival: () =>
+        analytics.track({
+          schemaVersion: 1,
+          name: "arrival_confirmed",
+          properties: { pharmacyId: pharmacy.id },
+        }),
+    });
+    arrivalTracker.current = tracker;
+    return () => {
+      tracker.dispose();
+      arrivalTracker.current = null;
+    };
+  }, [analytics, destinationLatitude, destinationLongitude, pharmacy.id]);
+
+  useEffect(() => {
+    if (!showingNavigation) return;
+    const onPopState = () => {
+      if (
+        window.location.pathname !== `/pharmacies/${pharmacy.id}/navigation`
+      ) {
+        arrivalTracker.current?.cancel();
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [pharmacy.id, showingNavigation]);
+
+  function startArrival() {
+    if (!destination || !arrivalTracker.current) return;
+    clearLocation();
+    if (!arrivalTracker.current.start()) return;
+    const path = `/pharmacies/${pharmacy.id}/navigation`;
+    if (window.location.pathname !== path)
+      window.history.pushState(null, "", path);
+  }
+
+  function quitArrival() {
+    arrivalTracker.current?.cancel();
+    if (window.location.pathname.endsWith("/navigation")) {
+      window.history.replaceState(
+        null,
+        "",
+        `/pharmacies/${pharmacy.id}/itineraire`,
+      );
+    }
+  }
 
   function requestLocation() {
     const version = ++requestVersion.current;
@@ -164,34 +252,46 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
             coordinates={destination}
             interactive
             name={pharmacy.name}
-            origin={location.status === "obtained" ? location.position : null}
+            origin={
+              arrivalPosition ??
+              (location.status === "obtained" ? location.position : null)
+            }
             route={route?.feature ?? null}
+            demonstrationVisible={!showingNavigation}
+            focusDestination={arrivalState.status === "arrived"}
           />
         ) : (
           <p className="route-preview-map-missing" role="status">
             Carte indisponible : coordonnées de destination indisponibles.
           </p>
         )}
-        {route ? (
+        <ArrivalMapBanner
+          state={arrivalState}
+          pharmacyName={pharmacy.name}
+          radiusMeters={DEFAULT_ARRIVAL_RADIUS_METERS}
+        />
+        {route && !showingNavigation ? (
           <div className="route-preview-map-badge" role="note">
             <CarIcon aria-hidden="true" weight="fill" />
             <span>7 min · 2,4 km</span>
             <small>Démonstration</small>
           </div>
         ) : null}
-        <div className="route-preview-map-controls">
-          <Button
-            aria-label="Me localiser sur la carte"
-            onClick={requestLocation}
-            disabled={location.status === "requesting"}
-            size="icon"
-            title="Me localiser sur la carte"
-            type="button"
-            variant="outline"
-          >
-            <CrosshairIcon aria-hidden="true" weight="fill" />
-          </Button>
-        </div>
+        {!showingNavigation ? (
+          <div className="route-preview-map-controls">
+            <Button
+              aria-label="Me localiser sur la carte"
+              onClick={requestLocation}
+              disabled={location.status === "requesting"}
+              size="icon"
+              title="Me localiser sur la carte"
+              type="button"
+              variant="outline"
+            >
+              <CrosshairIcon aria-hidden="true" weight="fill" />
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       <section aria-label="Aperçu du trajet" className="route-preview-panel">
@@ -222,25 +322,27 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           </a>
         </div>
 
-        <div
-          aria-label="Mode de déplacement"
-          className="route-preview-modes"
-          role="group"
-        >
-          {modeOptions.map(({ value, label, icon: Icon }) => (
-            <button
-              aria-pressed={mode === value}
-              className={mode === value ? "route-preview-modes__active" : ""}
-              key={value}
-              onClick={() => setMode(value)}
-              type="button"
-            >
-              <Icon aria-hidden="true" weight="fill" /> {label}
-            </button>
-          ))}
-        </div>
+        {!showingNavigation ? (
+          <div
+            aria-label="Mode de déplacement"
+            className="route-preview-modes"
+            role="group"
+          >
+            {modeOptions.map(({ value, label, icon: Icon }) => (
+              <button
+                aria-pressed={mode === value}
+                className={mode === value ? "route-preview-modes__active" : ""}
+                key={value}
+                onClick={() => setMode(value)}
+                type="button"
+              >
+                <Icon aria-hidden="true" weight="fill" /> {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-        {route ? (
+        {!showingNavigation && route ? (
           <div className="route-preview-summary">
             <div>
               <strong>{route.durationMinutes} min</strong>{" "}
@@ -248,31 +350,36 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
             </div>
             <p>Tracé de démonstration · ni trafic ni trajet calculé.</p>
           </div>
-        ) : (
+        ) : !showingNavigation ? (
           <Alert className="route-preview-no-route">
             <AlertDescription>
               Aucun trajet calculé pour ce mode ou cette destination. Google
               Maps peut proposer un itinéraire réel.
             </AlertDescription>
           </Alert>
-        )}
+        ) : null}
 
         <div className="route-preview-stops">
-          <div>
-            <span aria-hidden="true" className="route-preview-stops__origin" />
-            <p>
-              <strong>
-                {route
-                  ? "Départ du tracé : point fictif"
-                  : "Départ : votre position, si autorisée"}
-              </strong>
-              <small>
-                {route
-                  ? "Le tracé de démonstration n’utilise pas votre position."
-                  : "Aucune position transmise à Wanzila."}
-              </small>
-            </p>
-          </div>
+          {!showingNavigation ? (
+            <div>
+              <span
+                aria-hidden="true"
+                className="route-preview-stops__origin"
+              />
+              <p>
+                <strong>
+                  {route
+                    ? "Départ du tracé : point fictif"
+                    : "Départ : votre position, si autorisée"}
+                </strong>
+                <small>
+                  {route
+                    ? "Le tracé de démonstration n’utilise pas votre position."
+                    : "Aucune position transmise à Wanzila."}
+                </small>
+              </p>
+            </div>
+          ) : null}
           <div>
             <MapPinIcon aria-hidden="true" weight="fill" />
             <p>
@@ -282,62 +389,75 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           </div>
         </div>
 
-        <div
-          aria-live="polite"
-          className="route-preview-location"
-          role="status"
-        >
-          {location.status === "requesting" ? (
-            <p>Recherche de votre position…</p>
-          ) : null}
-          {location.status === "obtained" ? (
-            <p>
-              <Check aria-hidden="true" /> Position obtenue pour cette session
-              uniquement.
-            </p>
-          ) : null}
-          {location.status !== "idle" &&
-          location.status !== "requesting" &&
-          location.status !== "obtained" ? (
-            <p>{locationMessages[location.status]}</p>
-          ) : null}
-        </div>
-        <div className="route-preview-utility-actions">
-          {location.status === "requesting" ? (
-            <Button onClick={clearLocation} type="button" variant="outline">
-              Annuler la localisation
-            </Button>
-          ) : location.status === "obtained" ? (
-            <Button onClick={clearLocation} type="button" variant="outline">
-              Effacer ma position
-            </Button>
-          ) : location.status !== "idle" ? (
-            <Button onClick={requestLocation} type="button" variant="outline">
-              <RotateCcw aria-hidden="true" /> Réessayer la position
-            </Button>
-          ) : (
-            <Button onClick={requestLocation} type="button" variant="outline">
-              <CrosshairIcon aria-hidden="true" weight="fill" /> Utiliser ma
-              position
-            </Button>
-          )}
-          {address ? (
-            <Button
-              onClick={() => void copyAddress()}
-              type="button"
-              variant="outline"
-            >
-              <Clipboard aria-hidden="true" /> Copier l’adresse
-            </Button>
-          ) : null}
-          {pharmacy.phone ? (
-            <Button asChild variant="outline">
-              <a href={`tel:${pharmacy.phone.replace(/[\s().-]/g, "")}`}>
-                <Phone aria-hidden="true" /> Appeler
-              </a>
-            </Button>
-          ) : null}
-        </div>
+        {destination ? (
+          <ArrivalControls
+            state={arrivalState}
+            radiusMeters={DEFAULT_ARRIVAL_RADIUS_METERS}
+            onStart={startArrival}
+            onQuit={quitArrival}
+          />
+        ) : null}
+
+        {!showingNavigation ? (
+          <div
+            aria-live="polite"
+            className="route-preview-location"
+            role="status"
+          >
+            {location.status === "requesting" ? (
+              <p>Recherche de votre position…</p>
+            ) : null}
+            {location.status === "obtained" ? (
+              <p>
+                <Check aria-hidden="true" /> Position obtenue pour cette session
+                uniquement.
+              </p>
+            ) : null}
+            {location.status !== "idle" &&
+            location.status !== "requesting" &&
+            location.status !== "obtained" ? (
+              <p>{locationMessages[location.status]}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {!showingNavigation ? (
+          <div className="route-preview-utility-actions">
+            {location.status === "requesting" ? (
+              <Button onClick={clearLocation} type="button" variant="outline">
+                Annuler la localisation
+              </Button>
+            ) : location.status === "obtained" ? (
+              <Button onClick={clearLocation} type="button" variant="outline">
+                Effacer ma position
+              </Button>
+            ) : location.status !== "idle" ? (
+              <Button onClick={requestLocation} type="button" variant="outline">
+                <RotateCcw aria-hidden="true" /> Réessayer la position
+              </Button>
+            ) : (
+              <Button onClick={requestLocation} type="button" variant="outline">
+                <CrosshairIcon aria-hidden="true" weight="fill" /> Utiliser ma
+                position
+              </Button>
+            )}
+            {address ? (
+              <Button
+                onClick={() => void copyAddress()}
+                type="button"
+                variant="outline"
+              >
+                <Clipboard aria-hidden="true" /> Copier l’adresse
+              </Button>
+            ) : null}
+            {pharmacy.phone ? (
+              <Button asChild variant="outline">
+                <a href={`tel:${pharmacy.phone.replace(/[\s().-]/g, "")}`}>
+                  <Phone aria-hidden="true" /> Appeler
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <p
           aria-live="polite"
           className="route-preview-copy-feedback"
