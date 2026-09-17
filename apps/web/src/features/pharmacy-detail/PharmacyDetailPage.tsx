@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { SavedPharmacyButton } from "@/features/saved-pharmacies/SavedPharmacyButton";
+import { PharmacyPhoto } from "@/components/PharmacyPhoto";
 import {
   createPharmacyDetailClient,
   type PharmacyDetailState,
@@ -260,9 +261,11 @@ function PharmacyDetailContent({
       >
         <span aria-hidden="true" className="pharmacy-detail-panel__handle" />
         <div className="pharmacy-detail-identity">
-          <div aria-hidden="true" className="pharmacy-detail-identity__mark">
-            <Plus />
-          </div>
+          <PharmacyPhoto
+            className="pharmacy-detail-identity__mark"
+            name={pharmacy.name}
+            photo={pharmacy.photo}
+          />
           <div className="pharmacy-detail-identity__text">
             <h1>{pharmacy.name}</h1>
             <Badge
@@ -276,6 +279,12 @@ function PharmacyDetailContent({
                 Garde indiquée jusqu’au{" "}
                 {formatDateTime(pharmacy.currentDuty.endsAt)}
               </p>
+            ) : null}
+            {pharmacy.photo ? (
+              <small className="pharmacy-detail-identity__photo-credit">
+                Photo : {pharmacy.photo.credit} · vérifiée le{" "}
+                {formatDateTime(pharmacy.photo.verifiedAt)}
+              </small>
             ) : null}
           </div>
         </div>
@@ -384,6 +393,20 @@ function PharmacyDetailContent({
                 </small>
               ) : (
                 <small>Source non renseignée</small>
+              )}
+            </span>
+          </div>
+          <div className="pharmacy-detail-fact pharmacy-detail-fact--source">
+            <ShieldCheck aria-hidden="true" />
+            <span>
+              {pharmacy.recordProvenance ? (
+                <>
+                  Fiche vérifiée le{" "}
+                  {formatDateTime(pharmacy.recordProvenance.verifiedAt)}
+                  <small>Source : {pharmacy.recordProvenance.source}</small>
+                </>
+              ) : (
+                "Source et vérification de la fiche non renseignées"
               )}
             </span>
           </div>

@@ -2,6 +2,7 @@ import type { AdminPharmacy } from "@wanzila/contracts";
 import { MoreHorizontal, Phone, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PharmacyPhoto } from "@/components/PharmacyPhoto";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,12 +71,13 @@ export function AdminPharmacyList({
               <TableRow key={item.id}>
                 <TableCell>
                   <span className="pharmacy-directory-list__identity">
-                    <span
+                    <PharmacyPhoto
                       className="pharmacy-directory-list__photo"
-                      aria-hidden="true"
-                    >
-                      <Store />
-                    </span>
+                      decorative
+                      fallback={<Store />}
+                      name={item.name}
+                      photo={item.photo}
+                    />
                     <span>
                       <strong>{item.name}</strong>
                       <span className="pharmacy-directory-list__subline">
@@ -97,7 +99,7 @@ export function AdminPharmacyList({
                 </TableCell>
                 <TableCell>
                   <span className="pharmacy-directory-list__source">
-                    Non renseignée
+                    {item.recordProvenance?.source ?? "Non renseignée"}
                   </span>
                 </TableCell>
                 <TableCell>

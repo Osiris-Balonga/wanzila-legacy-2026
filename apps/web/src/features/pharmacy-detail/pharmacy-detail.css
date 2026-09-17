@@ -269,6 +269,9 @@
   stroke-width: 6;
   width: 2.8rem;
 }
+.pharmacy-detail-identity__mark img {
+  border-radius: 1rem;
+}
 .pharmacy-detail-identity__text {
   min-width: 0;
 }
@@ -280,6 +283,14 @@
 .pharmacy-detail-identity p {
   font-size: 0.78rem;
   margin: 0.25rem 0 0;
+}
+.pharmacy-detail-identity__photo-credit {
+  color: var(--muted);
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
 }
 
 .pharmacy-detail-duty {

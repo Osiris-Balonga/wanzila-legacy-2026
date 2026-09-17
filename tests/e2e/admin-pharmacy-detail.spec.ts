@@ -79,6 +79,8 @@ test("detail has identity, real-contract status, information and location region
   await expect(location).toBeVisible();
   await expect(information).toContainText(pharmacy.address.line);
   await expect(information).toContainText(pharmacy.phone);
+  await expect(information).toContainText("Aucune photo validée");
+  await expect(information).toContainText("Non renseignée");
   await expect(
     location.getByRole("link", { name: "Voir l’itinéraire" }),
   ).toHaveAttribute("href", /google\.com\/maps\/dir/);
@@ -101,6 +103,43 @@ test("detail has identity, real-contract status, information and location region
     page.getByRole("region", { name: "Statistiques rapides" }),
   ).toContainText("Statistiques indisponibles");
   await expect(page.getByText("482", { exact: true })).toHaveCount(0);
+});
+
+test("admin detail distinguishes verified record source from photo rights", async ({
+  page,
+}) => {
+  await page.route("**/pharmacy-photos/admin-test.webp", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><rect width="12" height="12" fill="#008d5b"/></svg>',
+    }),
+  );
+  await mockDetail(page, {
+    body: {
+      data: {
+        ...pharmacy,
+        photo: {
+          assetPath: "/pharmacy-photos/admin-test.webp",
+          source: "Collecte autorisée",
+          credit: "Équipe Wanzila",
+          rights: "Accord documenté",
+          verifiedAt: "2026-09-16T10:00:00.000Z",
+        },
+        recordProvenance: {
+          source: "Vérification de terrain",
+          verifiedAt: "2026-09-16T11:00:00.000Z",
+        },
+      },
+    },
+  });
+  await page.goto(`/admin/pharmacies/${pharmacy.id}`);
+  const information = page.getByRole("region", { name: "Informations" });
+  await expect(information).toContainText("Vérification de terrain");
+  await expect(information).toContainText("Équipe Wanzila");
+  await expect(information).toContainText("Accord documenté");
+  await expect(
+    page.getByRole("img", { name: `Photo vérifiée de ${pharmacy.name}` }),
+  ).toBeVisible();
 });
 
 test("detail retains edit, publish and archive interactions", async ({

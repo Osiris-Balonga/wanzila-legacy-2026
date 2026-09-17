@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PharmacyPhoto } from "@/components/PharmacyPhoto";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -196,6 +197,11 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
   const updatedAt = new Intl.DateTimeFormat("fr-CG", {
     dateStyle: "long",
   }).format(new Date(pharmacy.updatedAt));
+  const formattedVerification = pharmacy.recordProvenance
+    ? new Intl.DateTimeFormat("fr-CG", { dateStyle: "long" }).format(
+        new Date(pharmacy.recordProvenance.verifiedAt),
+      )
+    : null;
 
   return (
     <article className="admin-detail">
@@ -268,9 +274,12 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
           className="admin-detail__panel admin-detail__information"
         >
           <div className="admin-detail__identity">
-            <span aria-hidden="true" className="admin-detail__identity-icon">
-              <Store />
-            </span>
+            <PharmacyPhoto
+              className="admin-detail__identity-icon"
+              name={pharmacy.name}
+              photo={pharmacy.photo}
+              fallback={<Store />}
+            />
             <div className="admin-detail__identity-copy">
               <h2 id="admin-detail-information">{pharmacy.name}</h2>
               <p>{pharmacy.address.district}</p>
@@ -317,6 +326,28 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
             </InformationRow>
             <InformationRow icon={CalendarDays} label="Dernière modification">
               <time dateTime={pharmacy.updatedAt}>{updatedAt}</time>
+            </InformationRow>
+            <InformationRow icon={Store} label="Source de la fiche">
+              {pharmacy.recordProvenance?.source ?? "Non renseignée"}
+            </InformationRow>
+            <InformationRow icon={CalendarDays} label="Dernière vérification">
+              {pharmacy.recordProvenance && formattedVerification ? (
+                <time dateTime={pharmacy.recordProvenance.verifiedAt}>
+                  {formattedVerification}
+                </time>
+              ) : (
+                "Non renseignée"
+              )}
+            </InformationRow>
+            <InformationRow icon={Store} label="Photo de la pharmacie">
+              {pharmacy.photo ? (
+                <>
+                  {pharmacy.photo.credit} · {pharmacy.photo.source} · droits :{" "}
+                  {pharmacy.photo.rights}
+                </>
+              ) : (
+                "Aucune photo validée"
+              )}
             </InformationRow>
           </dl>
         </section>
@@ -409,8 +440,9 @@ export function AdminPharmacyDetail({ id }: { id: string }) {
         </section>
       </div>
       <p className="admin-detail__data-note">
-        Source et vérification non disponibles dans la fiche actuelle. Aucune
-        disponibilité n’est déduite du statut de publication.
+        La source et la date de vérification de la fiche sont indiquées
+        uniquement lorsqu’elles ont été renseignées. Aucune disponibilité n’est
+        déduite du statut de publication.
       </p>
     </article>
   );
