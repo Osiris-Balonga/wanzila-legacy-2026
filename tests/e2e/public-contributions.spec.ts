@@ -166,3 +166,30 @@ test("a precise GPS fix can be confirmed as the map position", async ({
     Math.abs((requests[0]?.coordinates?.longitude ?? 0) - 15.2832),
   ).toBeLessThan(0.001);
 });
+
+test("the two steps reflow at 320, 390, 768 and 1440 pixels", async ({
+  page,
+}, testInfo) => {
+  if (testInfo.project.name !== "desktop") return;
+  await page.goto("/contribuer");
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(
+      page.getByRole("heading", { name: "Ajouter une pharmacie" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+  }
+  await page
+    .getByRole("button", { name: "Continuer avec l’adresse seule" })
+    .click();
+  await page.getByRole("button", { name: "Continuer", exact: true }).click();
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.getByLabel("Nom de la pharmacie")).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+  }
+});
