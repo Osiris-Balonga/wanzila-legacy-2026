@@ -8,6 +8,10 @@ const environmentSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+  ROUTING_BASE_URL: z
+    .string()
+    .url()
+    .default("https://routing.openstreetmap.de"),
 });
 
 export function readEnvironment(environment: NodeJS.ProcessEnv) {
@@ -18,5 +22,6 @@ export function readEnvironment(environment: NodeJS.ProcessEnv) {
     databaseUrl: value.DATABASE_URL,
     serveWeb: value.SERVE_WEB === "true",
     nodeEnvironment: value.NODE_ENV,
+    routingBaseUrl: value.ROUTING_BASE_URL,
   };
 }
