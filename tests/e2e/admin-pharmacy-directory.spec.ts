@@ -338,9 +338,16 @@ for (const viewport of [
     await page.getByRole("link", { name: "Modifier" }).click();
     await page.getByLabel("Téléphone").fill("+242060001234");
     await page
+      .getByLabel("Source de vérification de la fiche")
+      .fill("Vérification de terrain");
+    await page
+      .getByLabel("Date de vérification de la fiche")
+      .fill("2026-09-15T12:00");
+    await page
       .getByRole("button", { name: "Enregistrer les modifications" })
       .click();
     await expect(page.getByText("+242060001234")).toBeVisible();
+    await expect(page.getByText("Vérification de terrain")).toBeVisible();
 
     await page.getByRole("button", { name: "Publier" }).click();
     await expect(page.getByText("Publiée")).toBeVisible();

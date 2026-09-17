@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PharmacyPhoto } from "@/components/PharmacyPhoto";
 import { PharmacyMap } from "@/features/discovery/map/PharmacyMap";
 import {
   fetchSavedPharmacies,
@@ -355,9 +356,13 @@ export function SavedPharmaciesPage() {
                   data-selected={selectedId === pharmacy.id}
                   key={pharmacy.id}
                 >
-                  <div aria-hidden="true" className="saved-card__photo">
-                    <Plus />
-                  </div>
+                  <PharmacyPhoto
+                    className="saved-card__photo"
+                    decorative
+                    fallback={<Plus />}
+                    name={pharmacy.name}
+                    photo={pharmacy.photo}
+                  />
                   <div className="saved-card__body">
                     <div className="saved-card__title-row">
                       <div>

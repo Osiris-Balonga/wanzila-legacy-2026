@@ -43,7 +43,15 @@ type Fields = {
   phone: string;
   latitude: string;
   longitude: string;
+  recordSource: string;
+  recordVerifiedAt: string;
 };
+
+function localDateTime(iso: string): string {
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 const emptyFields: Fields = {
   name: "",
@@ -53,6 +61,8 @@ const emptyFields: Fields = {
   phone: "",
   latitude: "",
   longitude: "",
+  recordSource: "",
+  recordVerifiedAt: "",
 };
 
 function pharmacyFields(pharmacy?: AdminPharmacy): Fields {
@@ -65,6 +75,10 @@ function pharmacyFields(pharmacy?: AdminPharmacy): Fields {
         phone: pharmacy.phone ?? "",
         latitude: String(pharmacy.coordinates.latitude),
         longitude: String(pharmacy.coordinates.longitude),
+        recordSource: pharmacy.recordProvenance?.source ?? "",
+        recordVerifiedAt: pharmacy.recordProvenance
+          ? localDateTime(pharmacy.recordProvenance.verifiedAt)
+          : "",
       }
     : emptyFields;
 }
@@ -90,6 +104,33 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (pending) return;
+    const source = fields.recordSource.trim();
+    const verificationDate = fields.recordVerifiedAt
+      ? new Date(fields.recordVerifiedAt)
+      : null;
+    if (
+      Boolean(source) !== Boolean(fields.recordVerifiedAt) ||
+      (verificationDate &&
+        (!Number.isFinite(verificationDate.getTime()) ||
+          verificationDate.getTime() > Date.now()))
+    ) {
+      setFieldErrors({
+        ...(!source ? { recordSource: "Indiquez la source vérifiée." } : {}),
+        ...(!fields.recordVerifiedAt ||
+        !verificationDate ||
+        !Number.isFinite(verificationDate.getTime()) ||
+        verificationDate.getTime() > Date.now()
+          ? {
+              recordVerifiedAt:
+                "Indiquez une date de vérification valide, non future.",
+            }
+          : {}),
+      });
+      setError(
+        "Source et date de vérification doivent être renseignées ensemble.",
+      );
+      return;
+    }
     const payload = {
       name: fields.name,
       address: {
@@ -103,6 +144,14 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
         longitude:
           fields.longitude.trim() === "" ? NaN : Number(fields.longitude),
       },
+      ...(source && verificationDate
+        ? {
+            recordProvenance: {
+              source,
+              verifiedAt: verificationDate.toISOString(),
+            },
+          }
+        : {}),
     };
     const validated = createAdminPharmacyRequestSchema.safeParse(payload);
     if (!validated.success) {
@@ -137,6 +186,9 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
           body: JSON.stringify({
             ...validated.data,
             ...(pharmacy && !fields.phone.trim() ? { phone: null } : {}),
+            ...(pharmacy && !source && pharmacy.recordProvenance
+              ? { recordProvenance: null }
+              : {}),
           }),
         },
       );
@@ -254,7 +306,40 @@ function PharmacyForm({ pharmacy }: { pharmacy?: AdminPharmacy }) {
           />
           {fieldMessage("longitude")}
         </label>
+        <label>
+          <span>Source de vérification de la fiche</span>
+          <Input
+            aria-invalid={Boolean(fieldErrors.recordSource)}
+            aria-describedby={
+              fieldErrors.recordSource ? "recordSource-error" : undefined
+            }
+            maxLength={255}
+            value={fields.recordSource}
+            onChange={update("recordSource")}
+          />
+          {fieldMessage("recordSource")}
+        </label>
+        <label>
+          <span>Date de vérification de la fiche</span>
+          <Input
+            aria-invalid={Boolean(fieldErrors.recordVerifiedAt)}
+            aria-describedby={
+              fieldErrors.recordVerifiedAt
+                ? "recordVerifiedAt-error"
+                : undefined
+            }
+            type="datetime-local"
+            max={localDateTime(new Date().toISOString())}
+            value={fields.recordVerifiedAt}
+            onChange={update("recordVerifiedAt")}
+          />
+          {fieldMessage("recordVerifiedAt")}
+        </label>
       </div>
+      <p className="pharmacy-form__hint">
+        Renseignez ces champs uniquement après avoir vérifié la source de la
+        fiche. Une photo suit une validation séparée.
+      </p>
       <Button type="submit" disabled={pending} aria-busy={pending}>
         {pharmacy
           ? "Enregistrer les modifications"

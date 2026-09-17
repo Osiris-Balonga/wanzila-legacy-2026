@@ -148,8 +148,144 @@ test("missing optional data and uncertain duty never imply availability", async 
   await expect(page.getByText(/garde à confirmer/i)).toBeVisible();
   await expect(page.getByText(/source ancienne/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "Appeler" })).toBeDisabled();
-  await expect(page.getByText(/distance/i)).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Calculer la distance" }),
+  ).toBeVisible();
+  await expect(page.getByText(/\d[\d,.]* km/)).toHaveCount(0);
   await expect(page.getByText(/paiement/i)).toHaveCount(0);
+  await expect(
+    page.getByText("Source et vérification de la fiche non renseignées"),
+  ).toBeVisible();
+});
+
+test("road distance uses an explicitly requested accurate location and API route", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({
+    latitude: -4.2792,
+    longitude: 15.2492,
+    accuracy: 20,
+  });
+  let routeRequests = 0;
+  await page.route("**/api/v1/routes", (route) => {
+    routeRequests += 1;
+    expect(route.request().postDataJSON()).toMatchObject({
+      pharmacyId: id,
+      mode: "car",
+      locationConsent: true,
+      origin: { latitude: -4.2792, longitude: 15.2492 },
+    });
+    return route.fulfill({
+      json: {
+        data: {
+          pharmacyId: id,
+          mode: "car",
+          distanceMeters: 3422.8,
+          durationSeconds: 281.1,
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [15.2492, -4.2792],
+              [15.2429, -4.2636],
+            ],
+          },
+          steps: [
+            {
+              distanceMeters: 3422.8,
+              durationSeconds: 281.1,
+              name: "Route de test",
+              maneuver: { type: "arrive", location: [15.2429, -4.2636] },
+            },
+          ],
+          snapDistanceMeters: { origin: 1, destination: 1 },
+          provider: {
+            name: "FOSSGIS / OSRM / OpenStreetMap",
+            attributionUrl: "https://routing.openstreetmap.de/about.html",
+            fixMapUrl: "https://www.openstreetmap.org/fixthemap",
+          },
+        },
+      },
+    });
+  });
+  await page.goto(`/pharmacies/${id}`);
+  expect(routeRequests).toBe(0);
+  await page.getByRole("button", { name: "Calculer la distance" }).click();
+  await expect(
+    page.getByText(/3,4 km · environ 5 min hors trafic/),
+  ).toBeVisible();
+  expect(routeRequests).toBe(1);
+});
+
+test("imprecise GPS does not produce or request a road distance", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({
+    latitude: -4.2792,
+    longitude: 15.2492,
+    accuracy: 250,
+  });
+  let routeRequests = 0;
+  await page.route("**/api/v1/routes", (route) => {
+    routeRequests += 1;
+    return route.abort();
+  });
+  await page.goto(`/pharmacies/${id}`);
+  await page.getByRole("button", { name: "Calculer la distance" }).click();
+  await expect(page.getByText(/Position trop imprécise/)).toBeVisible();
+  expect(routeRequests).toBe(0);
+  await expect(page.getByText(/\d[\d,.]* km/)).toHaveCount(0);
+});
+
+test("verified photo and record source appear only when provided", async ({
+  page,
+}) => {
+  await page.route("**/pharmacy-photos/verified-test.webp", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><rect width="12" height="12" fill="#008d5b"/></svg>',
+    }),
+  );
+  await page.route(`**/api/v1/pharmacies/${id}`, (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          ...pharmacy,
+          photo: {
+            assetPath: "/pharmacy-photos/verified-test.webp",
+            source: "Photographe autorisé",
+            credit: "Équipe Wanzila",
+            rights: "Accord documenté",
+            verifiedAt: "2026-09-15T12:00:00.000Z",
+          },
+          recordProvenance: {
+            source: "Vérification de terrain",
+            verifiedAt: "2026-09-15T12:00:00.000Z",
+          },
+        },
+      },
+    }),
+  );
+  await page.goto(`/pharmacies/${id}`);
+  const image = page.getByRole("img", {
+    name: `Photo vérifiée de ${pharmacy.name}`,
+  });
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((node) => (node as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await expect(page.getByText(/Photo : Équipe Wanzila/)).toBeVisible();
+  await expect(
+    page.getByText(/Source : Vérification de terrain/),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Source et vérification de la fiche non renseignées"),
+  ).toHaveCount(0);
 });
 
 test("loading, not-found and retryable errors use the detail surface", async ({

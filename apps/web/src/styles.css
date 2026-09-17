@@ -631,6 +631,12 @@ p {
   font-size: 0.8125rem;
   font-weight: 600;
 }
+.pharmacy-form__hint {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  margin: 0;
+}
 .form-grid__wide {
   grid-column: span 2;
 }
