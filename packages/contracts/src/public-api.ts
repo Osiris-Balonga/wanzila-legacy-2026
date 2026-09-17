@@ -51,6 +51,27 @@ export const currentDutySchema = z.object({
     .optional(),
 });
 
+export const pharmacyPhotoSchema = z
+  .object({
+    assetPath: z
+      .string()
+      .regex(
+        /^\/pharmacy-photos\/[a-z0-9][a-z0-9-]*\.(?:avif|webp|jpe?g|png)$/,
+      ),
+    source: nonEmptyTextSchema.max(255),
+    credit: nonEmptyTextSchema.max(255),
+    rights: nonEmptyTextSchema.max(255),
+    verifiedAt: z.iso.datetime(),
+  })
+  .strict();
+
+export const pharmacyRecordProvenanceSchema = z
+  .object({
+    source: nonEmptyTextSchema.max(255),
+    verifiedAt: z.iso.datetime(),
+  })
+  .strict();
+
 export const publicPharmacySchema = z.object({
   id: publicIdSchema,
   name: z.string(),
@@ -65,6 +86,8 @@ export const publicPharmacySchema = z.object({
     longitude: z.number(),
   }),
   currentDuty: currentDutySchema.optional(),
+  photo: pharmacyPhotoSchema.optional(),
+  recordProvenance: pharmacyRecordProvenanceSchema.optional(),
 });
 
 export const activePublicPharmacySchema = publicPharmacySchema.extend({

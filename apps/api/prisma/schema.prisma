@@ -62,20 +62,27 @@ model AdminSession {
 }
 
 model Pharmacy {
-  id             String            @id @default(uuid()) @db.Char(36)
-  name           String            @db.VarChar(180)
-  phone          String?           @db.VarChar(32)
-  address        String            @db.VarChar(255)
-  district       String            @db.VarChar(120)
-  arrondissement String            @db.VarChar(120)
-  latitude       Decimal           @db.Decimal(10, 7)
-  longitude      Decimal           @db.Decimal(10, 7)
-  status         PublicationStatus @default(DRAFT)
-  createdAt      DateTime          @default(now()) @db.DateTime(3)
-  updatedAt      DateTime          @updatedAt @db.DateTime(3)
-  duties         DutyPeriod[]
-  contributions  Contribution[]
-  reports        Report[]
+  id               String            @id @default(uuid()) @db.Char(36)
+  name             String            @db.VarChar(180)
+  phone            String?           @db.VarChar(32)
+  address          String            @db.VarChar(255)
+  district         String            @db.VarChar(120)
+  arrondissement   String            @db.VarChar(120)
+  latitude         Decimal           @db.Decimal(10, 7)
+  longitude        Decimal           @db.Decimal(10, 7)
+  recordSource     String?           @db.VarChar(255)
+  recordVerifiedAt DateTime?         @db.DateTime(3)
+  photoAssetPath   String?           @db.VarChar(255)
+  photoSource      String?           @db.VarChar(255)
+  photoCredit      String?           @db.VarChar(255)
+  photoRights      String?           @db.VarChar(255)
+  photoVerifiedAt  DateTime?         @db.DateTime(3)
+  status           PublicationStatus @default(DRAFT)
+  createdAt        DateTime          @default(now()) @db.DateTime(3)
+  updatedAt        DateTime          @updatedAt @db.DateTime(3)
+  duties           DutyPeriod[]
+  contributions    Contribution[]
+  reports          Report[]
 
   @@index([status, arrondissement, district])
   @@index([latitude, longitude])

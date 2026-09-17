@@ -320,6 +320,103 @@ describe.runIf(runMariaDbTests)(
       ).toBeUndefined();
     });
 
+    it("persists verified record provenance, exposes it publicly, and clears it atomically", async () => {
+      const recordProvenance = {
+        source: "Registre communal contrôlé",
+        verifiedAt: "2026-09-14T10:00:00.000Z",
+      };
+      const updated = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/pharmacies/${ids.alpha}`,
+        headers: {
+          ...contentTypeHeaders(),
+          cookie: administratorCookie,
+          origin: WEB_ORIGIN,
+        },
+        payload: { recordProvenance },
+      });
+      expect(updated.statusCode).toBe(200);
+      expect(
+        adminPharmacyResponseSchema.parse(updated.json()).data,
+      ).toMatchObject({
+        recordProvenance,
+      });
+      const publicDetail = await app.inject({
+        method: "GET",
+        url: `/api/v1/pharmacies/${ids.alpha}`,
+      });
+      expect(publicDetail.statusCode).toBe(200);
+      expect(
+        pharmacyDetailResponseSchema.parse(publicDetail.json()).data,
+      ).toMatchObject({
+        recordProvenance,
+      });
+
+      const cleared = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/pharmacies/${ids.alpha}`,
+        headers: {
+          ...contentTypeHeaders(),
+          cookie: administratorCookie,
+          origin: WEB_ORIGIN,
+        },
+        payload: { recordProvenance: null },
+      });
+      expect(cleared.statusCode).toBe(200);
+      expect(
+        adminPharmacyResponseSchema.parse(cleared.json()).data.recordProvenance,
+      ).toBeUndefined();
+      const persisted = await prisma.pharmacy.findUniqueOrThrow({
+        where: { id: ids.alpha },
+      });
+      expect(persisted.recordSource).toBeNull();
+      expect(persisted.recordVerifiedAt).toBeNull();
+    });
+
+    it("rejects unregistered photography and future verification", async () => {
+      const headers = {
+        ...contentTypeHeaders(),
+        cookie: administratorCookie,
+        origin: WEB_ORIGIN,
+      };
+      const photo = {
+        assetPath: "/pharmacy-photos/unapproved.webp",
+        source: "Photographe",
+        credit: "Photographe",
+        rights: "Autorisation écrite",
+        verifiedAt: "2026-09-14T10:00:00.000Z",
+      };
+      const unregistered = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/pharmacies/${ids.alpha}`,
+        headers,
+        payload: { photo },
+      });
+      expect(unregistered.statusCode).toBe(400);
+      const future = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/admin/pharmacies/${ids.alpha}`,
+        headers,
+        payload: {
+          recordProvenance: {
+            source: "Registre communal",
+            verifiedAt: "2026-09-16T00:00:00.000Z",
+          },
+        },
+      });
+      expect(future.statusCode).toBe(400);
+      const detail = await app.inject({
+        method: "GET",
+        url: `/api/v1/pharmacies/${ids.alpha}`,
+      });
+      expect(
+        pharmacyDetailResponseSchema.parse(detail.json()).data.photo,
+      ).toBeUndefined();
+      expect(
+        pharmacyDetailResponseSchema.parse(detail.json()).data.recordProvenance,
+      ).toBeUndefined();
+    });
+
     it("permits DRAFT publication and DRAFT or PUBLISHED archival", async () => {
       const published = await app.inject({
         method: "POST",
