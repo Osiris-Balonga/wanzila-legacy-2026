@@ -33,7 +33,7 @@ it does not mark any manifest deviation as approved.
 The current web app has no PENDING edit screen, despite a PENDING PATCH API.
 The lead confirmed that #73 GREEN covers the APPROVED→revision path only. A
 PENDING duty at the edit URL must get an honest accessible non-editor state and
-a return link; its editor will be a separate issue if needed.
+a return link; its editor is tracked separately in #75.
 
 The #72 API contract was merged into `dev` through PR #74 before the GREEN
 implementation. The deterministic fixtures match its response shape:

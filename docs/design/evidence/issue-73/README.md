@@ -31,7 +31,7 @@ viewport de la PNG source pour comparer les proportions.
 | Actions            | Le bouton éditable violet garde un texte blanc lisible ; en présence d’une révision PENDING il devient visiblement désactivé, lilas avec texte sombre. La suppression illustrée n’a pas de contrat/politique et n’est pas offerte. Approbation et rejet utilisent une confirmation et attendent le serveur. |
 
 La route d’une garde initialement PENDING affiche un état non éditeur et un lien
-de retour à la liste ; son éditeur reste hors #73. Les états loading, 401, 403,
+de retour à la liste ; son éditeur relève de #75, hors #73. Les états loading, 401, 403,
 404, réponse mal formée, 409 et erreur générique sont couverts par tests. Les
 contrôles et la liste sont vérifiés au clavier ; après revue réussie, le focus
 revient sur le titre d’historique après le rechargement complet. Les captures
