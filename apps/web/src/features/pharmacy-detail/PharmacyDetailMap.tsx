@@ -27,12 +27,16 @@ export function PharmacyDetailMap({
   name,
   origin,
   route,
+  demonstrationVisible = true,
+  focusDestination = false,
   interactive = false,
 }: {
   coordinates: { latitude: number; longitude: number };
   name: string;
   origin?: { latitude: number; longitude: number } | null;
   route?: RouteLineFeature | null;
+  demonstrationVisible?: boolean;
+  focusDestination?: boolean;
   interactive?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,10 +46,16 @@ export function PharmacyDetailMap({
   >(null);
   const originRef = useRef(origin);
   const originMarkerRef = useRef<MapLibreMarker>(null);
+  const mapViewRef = useRef<(() => void) | null>(null);
+  const demonstrationVisibleRef = useRef(demonstrationVisible);
+  const focusDestinationRef = useRef(focusDestination);
   originRef.current = origin;
+  demonstrationVisibleRef.current = demonstrationVisible;
+  focusDestinationRef.current = focusDestination;
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
+  const [mapIdle, setMapIdle] = useState(false);
 
   const syncOriginMarker = useCallback(() => {
     const map = mapRef.current;
@@ -72,6 +82,15 @@ export function PharmacyDetailMap({
   useEffect(() => {
     syncOriginMarker();
   }, [origin?.latitude, origin?.longitude, syncOriginMarker]);
+
+  useEffect(() => {
+    mapViewRef.current?.();
+  }, [
+    demonstrationVisible,
+    focusDestination,
+    origin?.latitude,
+    origin?.longitude,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +139,57 @@ export function PharmacyDetailMap({
             },
           );
         };
+        const applyView = () => {
+          if (!map) return;
+          setMapIdle(false);
+          if (route) {
+            const visibility = demonstrationVisibleRef.current
+              ? "visible"
+              : "none";
+            for (const layer of [
+              "route-preview-casing",
+              "route-preview-line",
+            ]) {
+              if (map.getLayer(layer))
+                map.setLayoutProperty(layer, "visibility", visibility);
+            }
+            if (demonstrationOriginMarker) {
+              demonstrationOriginMarker.getElement().style.display =
+                demonstrationVisibleRef.current ? "" : "none";
+            }
+          }
+          if (demonstrationVisibleRef.current && route) {
+            fitDemonstration();
+            return;
+          }
+          const current = originRef.current;
+          if (
+            !focusDestinationRef.current &&
+            !demonstrationVisibleRef.current &&
+            current &&
+            hasValidCoordinates(current)
+          ) {
+            map.fitBounds(
+              [
+                [current.longitude, current.latitude],
+                [coordinates.longitude, coordinates.latitude],
+              ],
+              {
+                padding: { top: 190, bottom: 85, left: 45, right: 45 },
+                maxZoom: 15.5,
+                duration: 0,
+              },
+            );
+            return;
+          }
+          map.easeTo({
+            center: [coordinates.longitude, coordinates.latitude],
+            zoom: focusDestinationRef.current ? 15.5 : 14.5,
+            offset: focusDestinationRef.current ? [0, 75] : [0, 55],
+            duration: 0,
+          });
+        };
+        mapViewRef.current = applyView;
         map.once("load", () => {
           if (route) {
             map?.addSource("route-preview-demonstration", {
@@ -148,17 +218,14 @@ export function PharmacyDetailMap({
               },
               layout: { "line-cap": "round", "line-join": "round" },
             });
-            fitDemonstration();
-          } else {
-            map?.easeTo({
-              center: [coordinates.longitude, coordinates.latitude],
-              offset: [0, 55],
-              duration: 0,
-            });
           }
+          applyView();
           setStatus("ready");
         });
         map.on("error", () => setStatus("error"));
+        map.on("idle", () => {
+          if (!cancelled) setMapIdle(true);
+        });
         const markerElement = document.createElement("div");
         markerElement.className = "pharmacy-detail-map__marker";
         const pin = document.createElement("span");
@@ -195,7 +262,7 @@ export function PharmacyDetailMap({
         syncOriginMarker();
         observer = new ResizeObserver(() => {
           map?.resize();
-          if (route) fitDemonstration();
+          applyView();
         });
         observer.observe(containerRef.current);
       })
@@ -210,6 +277,7 @@ export function PharmacyDetailMap({
       originMarkerRef.current = null;
       mapRef.current = null;
       createOriginMarkerRef.current = null;
+      mapViewRef.current = null;
       demonstrationOriginMarker?.remove();
       map?.remove();
     };
@@ -229,6 +297,7 @@ export function PharmacyDetailMap({
     >
       <div
         className="pharmacy-detail-map__canvas"
+        data-map-idle={mapIdle}
         data-map-status={status}
         ref={containerRef}
       />

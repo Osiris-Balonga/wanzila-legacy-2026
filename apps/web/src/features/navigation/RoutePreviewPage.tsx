@@ -256,6 +256,8 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
               (location.status === "obtained" ? location.position : null)
             }
             route={route?.feature ?? null}
+            demonstrationVisible={!showingNavigation}
+            focusDestination={arrivalState.status === "arrived"}
           />
         ) : (
           <p className="route-preview-map-missing" role="status">
@@ -357,21 +359,26 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
         ) : null}
 
         <div className="route-preview-stops">
-          <div>
-            <span aria-hidden="true" className="route-preview-stops__origin" />
-            <p>
-              <strong>
-                {route
-                  ? "Départ du tracé : point fictif"
-                  : "Départ : votre position, si autorisée"}
-              </strong>
-              <small>
-                {route
-                  ? "Le tracé de démonstration n’utilise pas votre position."
-                  : "Aucune position transmise à Wanzila."}
-              </small>
-            </p>
-          </div>
+          {!showingNavigation ? (
+            <div>
+              <span
+                aria-hidden="true"
+                className="route-preview-stops__origin"
+              />
+              <p>
+                <strong>
+                  {route
+                    ? "Départ du tracé : point fictif"
+                    : "Départ : votre position, si autorisée"}
+                </strong>
+                <small>
+                  {route
+                    ? "Le tracé de démonstration n’utilise pas votre position."
+                    : "Aucune position transmise à Wanzila."}
+                </small>
+              </p>
+            </div>
+          ) : null}
           <div>
             <MapPinIcon aria-hidden="true" weight="fill" />
             <p>

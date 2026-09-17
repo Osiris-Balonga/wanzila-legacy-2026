@@ -119,6 +119,9 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/api/v1/pharmacies/${id}`, (route) =>
     route.fulfill({ json: { data: pharmacy } }),
   );
+  await page.route("**/api/v1/analytics/events", (route) =>
+    route.fulfill({ status: 202, json: { data: {} } }),
+  );
 });
 
 test("explicit start, one arrival at 50 m, cleanup, no position storage or transmission", async ({
@@ -142,6 +145,13 @@ test("explicit start, one arrival at 50 m, cleanup, no position storage or trans
   await expect(
     page.getByRole("heading", { name: /suivi d’arrivée en cours/i }),
   ).toBeVisible();
+  await expect(
+    page.locator(".route-preview-map-origin--demonstration"),
+  ).toBeHidden();
+  await expect(page.locator(".route-preview-map-badge")).toHaveCount(0);
+  await expect(
+    page.locator(".route-preview-map-origin--current"),
+  ).toBeVisible();
   const canvas = page.locator(".maplibregl-canvas");
   await canvas.evaluate((element) =>
     element.setAttribute("data-arrival-instance", "unchanged"),
@@ -155,6 +165,12 @@ test("explicit start, one arrival at 50 m, cleanup, no position storage or trans
   await expect(
     page.getByRole("heading", { name: /arrivée à proximité/i }),
   ).toBeVisible();
+  await expect(
+    page.locator(".route-preview-map-origin--demonstration"),
+  ).toBeHidden();
+  await expect(page.locator(".route-preview-map-origin--current")).toHaveCount(
+    0,
+  );
   expect(await witness(page)).toEqual({ calls: 1, cleared: [1] });
   await emitPosition(page, -4.2636, 15.2429);
   await expect(
@@ -305,11 +321,38 @@ test("denial, cancellation and acquisition failure never emit arrival analytics"
   ).toBe(true);
 });
 
+test("tracking controls retain keyboard order and visible focus", async ({
+  page,
+}) => {
+  await installLocationMock(page);
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await emitPosition(page, -4.2646, 15.2429);
+  const quit = page.getByRole("button", { name: "Quitter le suivi" });
+  await quit.focus();
+  await expect(quit).toBeFocused();
+  await page.keyboard.press("Tab");
+  const external = page.getByRole("link", {
+    name: /ouvrir l’itinéraire dans google maps/i,
+  });
+  await expect(external).toBeFocused();
+  expect(
+    await external.evaluate((element) => element.matches(":focus-visible")),
+  ).toBe(true);
+});
+
 test("responsive live-map evidence for active, arrived, cancelled and error states", async ({
   page,
 }, testInfo) => {
   await installLocationMock(page);
   await page.goto(`/pharmacies/${id}/itineraire`);
+  // Full-page stitching can paint the fixed, off-screen skip link inside the
+  // stitched image at later scroll offsets. Its keyboard behavior is tested above.
+  await page.addStyleTag({
+    content: ".skip-link { visibility: hidden !important; }",
+  });
   await page
     .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
     .click();
@@ -321,6 +364,12 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
   );
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(200);
+    await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+      "data-map-idle",
+      "true",
+      { timeout: 30000 },
+    );
     const overflow = await page
       .locator("html")
       .evaluate((element) => element.scrollWidth - element.clientWidth);
@@ -337,22 +386,15 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
     });
   }
   await page.setViewportSize({ width: 390, height: 900 });
-  const quit = page.getByRole("button", { name: "Quitter le suivi" });
-  await quit.focus();
-  await expect(quit).toBeFocused();
-  await page.keyboard.press("Tab");
-  const external = page.getByRole("link", {
-    name: /ouvrir l’itinéraire dans google maps/i,
-  });
-  await expect(external).toBeFocused();
-  expect(
-    await external.evaluate((element) => element.matches(":focus-visible")),
-  ).toBe(true);
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement)
-      document.activeElement.blur();
-  });
   await emitPosition(page, -4.2636, 15.2429);
+  await expect(
+    page.getByRole("heading", { name: /arrivée à proximité/i }),
+  ).toBeVisible();
+  await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+    "data-map-idle",
+    "true",
+    { timeout: 30000 },
+  );
   await page.screenshot({
     path: process.env.WANZILA_ARRIVAL_CAPTURE_DIR
       ? resolve(process.env.WANZILA_ARRIVAL_CAPTURE_DIR, "arrived-390.png")
@@ -361,6 +403,12 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
     animations: "disabled",
   });
   await page.getByRole("button", { name: "Terminer le suivi" }).click();
+  await expect(page.getByText(/suivi arrêté/i)).toBeVisible();
+  await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+    "data-map-idle",
+    "true",
+    { timeout: 30000 },
+  );
   await page.screenshot({
     path: process.env.WANZILA_ARRIVAL_CAPTURE_DIR
       ? resolve(process.env.WANZILA_ARRIVAL_CAPTURE_DIR, "cancelled-390.png")
@@ -372,6 +420,12 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
     .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
     .click();
   await emitError(page, 2);
+  await expect(page.getByRole("alert")).toContainText(/position indisponible/i);
+  await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+    "data-map-idle",
+    "true",
+    { timeout: 30000 },
+  );
   await page.screenshot({
     path: process.env.WANZILA_ARRIVAL_CAPTURE_DIR
       ? resolve(process.env.WANZILA_ARRIVAL_CAPTURE_DIR, "error-390.png")
