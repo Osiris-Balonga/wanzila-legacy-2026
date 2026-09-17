@@ -266,4 +266,21 @@ describe("explicit arrival watch lifecycle", () => {
     }).start();
     expect(unsupportedEvents).toEqual([]);
   });
+
+  it("does not emit a second start event while a watcher is active", async () => {
+    const { createArrivalTracker } = await subject();
+    const { geo } = createGeo();
+    const onStart = vi.fn();
+    const tracker = createArrivalTracker({
+      geolocation: geo,
+      destination,
+      onState: vi.fn(),
+      onStart,
+    });
+    tracker.start();
+    tracker.start();
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+    expect(onStart).toHaveBeenCalledTimes(1);
+    tracker.cancel();
+  });
 });

@@ -34,14 +34,14 @@ export function ArrivalMapBanner({
         <small>Suivi de proximité · démonstration</small>
         <h2>
           {state.status === "arrived"
-            ? "Arrivée à proximité"
+            ? "Arrivée à proximité estimée"
             : state.status === "requesting"
               ? "Recherche de votre position…"
               : "Suivi d’arrivée en cours"}
         </h2>
         <p>
           {state.status === "arrived"
-            ? `Vous êtes à ${radiusMeters} m ou moins de ${pharmacyName}, à vol d’oiseau.`
+            ? `Position probablement à ${radiusMeters} m ou moins de ${pharmacyName}, à vol d’oiseau, selon la précision estimée du GPS.`
             : `Rapprochez-vous de ${pharmacyName}. Aucun guidage virage par virage n’est calculé.`}
         </p>
       </div>
@@ -94,9 +94,15 @@ export function ArrivalControls({
           </p>
         </div>
       ) : null}
+      {state.status === "active" && state.arrivalUncertain ? (
+        <p className="arrival-controls__uncertain" role="status">
+          Position proche, mais précision insuffisante du GPS pour confirmer
+          l’arrivée. Le suivi continue.
+        </p>
+      ) : null}
       {state.status === "arrived" ? (
         <p className="arrival-controls__feedback" role="status">
-          <Check aria-hidden="true" /> Arrivée à proximité détectée une seule
+          <Check aria-hidden="true" /> Proximité estimée par le GPS une seule
           fois. La position n’est plus suivie.
         </p>
       ) : null}

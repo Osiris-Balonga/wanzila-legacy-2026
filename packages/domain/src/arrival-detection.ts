@@ -42,3 +42,18 @@ export function isWithinArrivalRadius(
     distanceMeters <= radiusMeters
   );
 }
+
+/** Conservative GPS estimate: the entire accuracy radius must fit inside the arrival radius. */
+export function isArrivalCertain(
+  distanceMeters: number | null,
+  accuracyMeters: number,
+  radiusMeters = DEFAULT_ARRIVAL_RADIUS_METERS,
+): boolean {
+  return (
+    isWithinArrivalRadius(distanceMeters, radiusMeters) &&
+    Number.isFinite(accuracyMeters) &&
+    accuracyMeters >= 0 &&
+    distanceMeters !== null &&
+    distanceMeters + accuracyMeters <= radiusMeters
+  );
+}

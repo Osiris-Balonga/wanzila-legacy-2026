@@ -78,12 +78,23 @@
 .arrival-controls__distance strong {
   color: var(--ink);
   font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 
 .arrival-controls__distance span {
   color: var(--muted);
   font-size: 0.72rem;
+}
+
+.arrival-controls__uncertain {
+  background: #fff3e9;
+  border-radius: 0.7rem;
+  color: #723f11;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  margin: 0 0 0.65rem;
+  padding: 0.65rem;
 }
 
 .arrival-controls__feedback {

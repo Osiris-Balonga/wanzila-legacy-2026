@@ -112,6 +112,12 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
       radiusMeters: DEFAULT_ARRIVAL_RADIUS_METERS,
       onState: setArrivalState,
       onPosition: setArrivalPosition,
+      onStart: () =>
+        analytics.track({
+          schemaVersion: 1,
+          name: "route_started",
+          properties: { pharmacyId: pharmacy.id },
+        }),
       onArrival: () =>
         analytics.track({
           schemaVersion: 1,
@@ -146,11 +152,6 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
     const path = `/pharmacies/${pharmacy.id}/navigation`;
     if (window.location.pathname !== path)
       window.history.pushState(null, "", path);
-    analytics.track({
-      schemaVersion: 1,
-      name: "route_started",
-      properties: { pharmacyId: pharmacy.id },
-    });
   }
 
   function quitArrival() {

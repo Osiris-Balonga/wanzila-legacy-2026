@@ -470,9 +470,27 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
         : testInfo.outputPath(`active-${width}.png`),
       fullPage: true,
       animations: "disabled",
+      scale: "css",
     });
   }
   await page.setViewportSize({ width: 390, height: 900 });
+  await emitPosition(page, -4.2636, 15.2429, 1000);
+  await expect(
+    page.getByRole("status").filter({ hasText: /précision insuffisante/i }),
+  ).toBeVisible();
+  await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+    "data-map-idle",
+    "true",
+    { timeout: 30000 },
+  );
+  await page.screenshot({
+    path: process.env.WANZILA_ARRIVAL_CAPTURE_DIR
+      ? resolve(process.env.WANZILA_ARRIVAL_CAPTURE_DIR, "uncertain-390.png")
+      : testInfo.outputPath("uncertain-390.png"),
+    fullPage: true,
+    animations: "disabled",
+    scale: "css",
+  });
   await emitPosition(page, -4.2636, 15.2429);
   await expect(
     page.getByRole("heading", { name: /arrivée à proximité/i }),
@@ -488,6 +506,7 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
       : testInfo.outputPath("arrived-390.png"),
     fullPage: true,
     animations: "disabled",
+    scale: "css",
   });
   await page.getByRole("button", { name: "Terminer le suivi" }).click();
   await expect(page.getByText(/suivi arrêté/i)).toBeVisible();
@@ -502,6 +521,7 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
       : testInfo.outputPath("cancelled-390.png"),
     fullPage: true,
     animations: "disabled",
+    scale: "css",
   });
   await page
     .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
@@ -519,5 +539,6 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
       : testInfo.outputPath("error-390.png"),
     fullPage: true,
     animations: "disabled",
+    scale: "css",
   });
 });

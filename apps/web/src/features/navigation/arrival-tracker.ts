@@ -1,5 +1,6 @@
 import {
   DEFAULT_ARRIVAL_RADIUS_METERS,
+  isArrivalCertain,
   isWithinArrivalRadius,
   straightLineDistanceMeters,
   type ArrivalCoordinates,
@@ -7,7 +8,7 @@ import {
 
 export type ArrivalState =
   | { status: "idle" | "requesting" | "cancelled" | "arrived" }
-  | { status: "active"; distanceMeters: number }
+  | { status: "active"; distanceMeters: number; arrivalUncertain: boolean }
   | { status: "denied" | "timeout" | "unavailable" | "unsupported" };
 
 type ArrivalGeolocation = Pick<Geolocation, "watchPosition" | "clearWatch">;
@@ -18,6 +19,7 @@ export function createArrivalTracker({
   radiusMeters = DEFAULT_ARRIVAL_RADIUS_METERS,
   onState,
   onPosition,
+  onStart,
   onArrival,
 }: {
   geolocation?: ArrivalGeolocation;
@@ -25,6 +27,7 @@ export function createArrivalTracker({
   radiusMeters?: number;
   onState: (state: ArrivalState) => void;
   onPosition?: (position: ArrivalCoordinates | null) => void;
+  onStart?: () => void;
   onArrival?: () => void;
 }) {
   let watchId: number | null = null;
@@ -53,12 +56,15 @@ export function createArrivalTracker({
       onPosition?.(null);
       if (!geolocation) {
         onState({ status: "unsupported" });
-        return true;
+        return false;
       }
       const attempt = ++generation;
       watching = true;
       onState({ status: "requesting" });
       try {
+        // Must precede watchPosition: a valid test/browser implementation can
+        // synchronously deliver a fix before the call returns its watch ID.
+        onStart?.();
         const id = geolocation.watchPosition(
           (position) => {
             if (disposed || !watching || attempt !== generation) return;
@@ -74,7 +80,10 @@ export function createArrivalTracker({
               fail("unavailable");
               return;
             }
-            if (isWithinArrivalRadius(distanceMeters, radiusMeters)) {
+            const accuracyMeters = position.coords.accuracy;
+            if (
+              isArrivalCertain(distanceMeters, accuracyMeters, radiusMeters)
+            ) {
               stop();
               onArrival?.();
               onState({ status: "arrived" });
@@ -82,7 +91,14 @@ export function createArrivalTracker({
             }
             // Only the current fix is held transiently for the existing map marker.
             onPosition?.(current);
-            onState({ status: "active", distanceMeters });
+            onState({
+              status: "active",
+              distanceMeters,
+              arrivalUncertain: isWithinArrivalRadius(
+                distanceMeters,
+                radiusMeters,
+              ),
+            });
           },
           (error) => {
             if (disposed || !watching || attempt !== generation) return;
