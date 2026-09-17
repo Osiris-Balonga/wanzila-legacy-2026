@@ -315,18 +315,9 @@ function PharmacyDetailContent({
             </Button>
           )}
           <SavedPharmacyButton id={pharmacy.id} />
-          <Button
-            disabled
-            title="Signalement bientôt disponible"
-            type="button"
-            variant="secondary"
-          >
-            <CircleAlert aria-hidden="true" /> <span>Signaler un problème</span>
-          </Button>
         </div>
         <p className="pharmacy-detail-actions-note">
-          Les pharmacies enregistrées restent sur cet appareil. Signalement
-          bientôt disponible.
+          Les pharmacies enregistrées restent sur cet appareil.
         </p>
 
         <Separator />

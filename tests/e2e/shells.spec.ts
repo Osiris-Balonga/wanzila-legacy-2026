@@ -43,6 +43,11 @@ for (const viewport of viewports) {
     await expect(
       page.getByRole("navigation", { name: "Navigation administration" }),
     ).toBeVisible();
+    await expect(
+      page
+        .getByRole("navigation", { name: "Navigation administration" })
+        .getByRole("link", { name: "Signalements" }),
+    ).toHaveCount(0);
   });
 }
 

@@ -153,6 +153,7 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
     "href",
     "/admin/qualite",
   );
+  await expect(alerts).not.toContainText(/signalements/i);
   expect(requests).toContain("/api/v1/admin/analytics/overview?window=7d");
 
   await page.goto("/admin/qualite");
@@ -178,6 +179,9 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
   await expect(
     page.getByRole("region", { name: "Actions en attente" }).getByRole("link"),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Actions en attente" }),
+  ).not.toContainText(/signalements/i);
   expect(
     requests.filter(
       (url) => url === "/api/v1/admin/analytics/overview?window=7d",
