@@ -97,13 +97,13 @@ describe("issue #55 analytics dashboard component contract (RED)", () => {
     expect(markup).not.toMatch(/<img[^>]+(?:pharmacie|photo)/i);
   });
 
-  it("keeps map and alert regions honest where #54 only supplies top-five coordinates and aggregate counts", async () => {
+  it("waits for the separate #63 map payload while retaining honest #54 action counts", async () => {
     const markup = await renderPage("AdminDashboardPage", {
       status: "success",
       overview: analyticsOverviewFixture().data,
     });
 
-    expect(markup).toContain("Carte d’activité");
+    expect(markup).toContain("Chargement de l’activité");
     expect(markup).toContain("Pharmacie des Manguiers");
     expect(markup).toMatch(/alertes|actions à traiter/i);
     expect(markup).toContain("3 contributions en attente");
@@ -113,7 +113,7 @@ describe("issue #55 analytics dashboard component contract (RED)", () => {
     expect(markup).toMatch(
       /gestion des contributions et signalements bientôt disponible/i,
     );
-    expect(markup).toMatch(/activité cartographique (?:partielle|limitée)/i);
+    expect(markup).not.toContain("Carte d’activité");
     expect(markup).not.toMatch(
       /carte de chaleur|heatmap|position utilisateur/i,
     );
