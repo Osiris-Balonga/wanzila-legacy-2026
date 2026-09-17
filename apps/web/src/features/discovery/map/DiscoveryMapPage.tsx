@@ -4,7 +4,6 @@ import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { MapPinIcon } from "@phosphor-icons/react/MapPin";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import {
-  Bookmark,
   List,
   LocateFixed,
   Navigation,
@@ -17,6 +16,8 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
+import { SavedPharmacyButton } from "@/features/saved-pharmacies/SavedPharmacyButton";
 import type { DiscoveryLoadState, DiscoveryUrlState } from "../types";
 import { PharmacyMap } from "./PharmacyMap";
 import "./discovery-map.css";
@@ -255,13 +256,7 @@ export function DiscoveryMapPage({
                 <Navigation aria-hidden="true" /> Itinéraire
               </a>
             </Button>
-            <Button
-              disabled
-              title="Enregistrement bientôt disponible"
-              variant="secondary"
-            >
-              <Bookmark aria-hidden="true" /> Enregistrer
-            </Button>
+            <SavedPharmacyButton id={selected.id} />
           </div>
           <Button
             className="discovery-map-selection__list"
@@ -277,14 +272,10 @@ export function DiscoveryMapPage({
           <MapPinIcon aria-hidden="true" weight="fill" />
           Carte
         </span>
-        <button
-          disabled
-          title="Enregistrement bientôt disponible"
-          type="button"
-        >
-          <Bookmark aria-hidden="true" />
+        <a href="/enregistrees">
+          <BookmarkSimpleIcon aria-hidden="true" weight="fill" />
           Enregistrées
-        </button>
+        </a>
         <a href="/contribuer">
           <Plus aria-hidden="true" />
           Contribuer

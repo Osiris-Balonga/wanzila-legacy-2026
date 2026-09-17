@@ -3,7 +3,6 @@ import { BuildingsIcon } from "@phosphor-icons/react/Buildings";
 import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { MapPinIcon } from "@phosphor-icons/react/MapPin";
 import {
-  Bookmark,
   ChevronDown,
   ChevronLeft,
   CircleAlert,
@@ -30,6 +29,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
+import { SavedPharmacyButton } from "@/features/saved-pharmacies/SavedPharmacyButton";
 import {
   createPharmacyDetailClient,
   type PharmacyDetailState,
@@ -187,10 +188,10 @@ function DetailNavigation() {
         <MapPinIcon aria-hidden="true" weight="fill" />
         <span>Carte</span>
       </a>
-      <button disabled title="Enregistrées bientôt disponibles" type="button">
-        <Bookmark aria-hidden="true" />
+      <a href="/enregistrees">
+        <BookmarkSimpleIcon aria-hidden="true" weight="fill" />
         <span>Enregistrées</span>
-      </button>
+      </a>
       <a href="/contribuer">
         <Plus aria-hidden="true" />
         <span>Contribuer</span>
@@ -313,14 +314,7 @@ function PharmacyDetailContent({
               <Phone aria-hidden="true" /> <span>Appeler</span>
             </Button>
           )}
-          <Button
-            disabled
-            title="Enregistrement bientôt disponible"
-            type="button"
-            variant="secondary"
-          >
-            <Bookmark aria-hidden="true" /> <span>Enregistrer</span>
-          </Button>
+          <SavedPharmacyButton id={pharmacy.id} />
           <Button
             disabled
             title="Signalement bientôt disponible"
@@ -331,7 +325,8 @@ function PharmacyDetailContent({
           </Button>
         </div>
         <p className="pharmacy-detail-actions-note">
-          Enregistrement et signalement bientôt disponibles.
+          Les pharmacies enregistrées restent sur cet appareil. Signalement
+          bientôt disponible.
         </p>
 
         <Separator />
