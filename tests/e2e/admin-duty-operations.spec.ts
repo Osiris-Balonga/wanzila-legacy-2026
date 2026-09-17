@@ -287,4 +287,38 @@ test("an existing exception can be corrected and a conflict reloads server data"
   await expect(
     page.getByRole("heading", { name: "Ajouter une exception" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Annuler toute la garde" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("note")).toContainText(/chevaucher/i);
 });
+
+for (const surface of ["sources", "exceptions"] as const) {
+  test(`${surface} exposes authentication, forbidden and server-error states`, async ({
+    page,
+  }) => {
+    const endpoint =
+      surface === "sources"
+        ? "**/api/v1/admin/sources?*"
+        : `**/api/v1/admin/duties/${dutyId}`;
+    const path =
+      surface === "sources"
+        ? "/admin/gardes/sources"
+        : `/admin/gardes/${dutyId}/exceptions`;
+    for (const [status, expected] of [
+      [401, /connexion requise/i],
+      [403, /accès refusé/i],
+      [500, /indisponibles/i],
+    ] as const) {
+      await page.route(endpoint, (route) =>
+        route.fulfill({
+          status,
+          json: { error: { code: "ERROR", message: "Test failure" } },
+        }),
+      );
+      await page.goto(path);
+      await expect(page.getByRole("alert")).toContainText(expected);
+      await page.unroute(endpoint);
+    }
+  });
+}

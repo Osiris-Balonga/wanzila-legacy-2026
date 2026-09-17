@@ -289,7 +289,8 @@ export function AdminDutyExceptions({ id }: { id: string }) {
                   : "Non approuvée"}
               </p>
             </div>
-            {ready.duty.status === "APPROVED" ? (
+            {ready.duty.status === "APPROVED" &&
+            ready.exceptions.length === 0 ? (
               <Button
                 disabled={busy}
                 onClick={() => setConfirmCancel(true)}
@@ -300,6 +301,15 @@ export function AdminDutyExceptions({ id }: { id: string }) {
               </Button>
             ) : null}
           </section>
+          {ready.duty.status === "APPROVED" && ready.exceptions.length > 0 ? (
+            <Alert role="note">
+              <AlertDescription>
+                Une exception existe déjà. L’annulation de toute la garde ne
+                peut pas chevaucher une exception enregistrée. Modifiez les
+                exceptions existantes selon la situation.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {feedback ? <p role="status">{feedback}</p> : null}
           {error ? <p role="alert">{error}</p> : null}
           {ready.duty.status !== "APPROVED" ? (
