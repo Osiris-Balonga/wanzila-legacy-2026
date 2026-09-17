@@ -1,4 +1,6 @@
 import {
+  adminAnalyticsActivityQuerySchema,
+  adminAnalyticsActivityResponseSchema,
   adminAnalyticsOverviewQuerySchema,
   adminAnalyticsOverviewResponseSchema,
   adminAnalyticsQualityQuerySchema,
@@ -10,6 +12,7 @@ import { createAdministratorAuthorizationPreHandler } from "../admin-auth/author
 import { sendBadRequest } from "../shared/http-errors.js";
 import { loadAdminAnalyticsOverview } from "./overview.js";
 import { loadAdminAnalyticsQuality } from "./quality.js";
+import { loadAdminAnalyticsActivity } from "./activity.js";
 
 export function registerAdminAnalyticsRoutes(
   app: FastifyInstance,
@@ -53,6 +56,21 @@ export function registerAdminAnalyticsRoutes(
         sourceFreshnessMaxAgeMs: options.sourceFreshnessMaxAgeMs,
       });
       return adminAnalyticsQualityResponseSchema.parse(detail);
+    },
+  );
+  app.get(
+    "/admin/analytics/activity",
+    { preHandler: requireAdministrator },
+    async (request, reply) => {
+      const query = adminAnalyticsActivityQuerySchema.safeParse(request.query);
+      if (!query.success) return sendBadRequest(reply);
+      const asOf = options.now();
+      const activity = await loadAdminAnalyticsActivity({
+        prisma: options.prisma,
+        asOf,
+        query: query.data,
+      });
+      return adminAnalyticsActivityResponseSchema.parse(activity);
     },
   );
 }
