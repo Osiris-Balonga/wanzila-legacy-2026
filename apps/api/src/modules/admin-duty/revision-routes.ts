@@ -258,6 +258,22 @@ export function registerAdminDutyRevisionRoutes(
                   });
                   if (!source) return { failure: "CONFLICT" as const };
                 }
+                const fullCancellation = await tx.dutyException.findFirst({
+                  where: {
+                    dutyPeriodId: duty.id,
+                    kind: "CANCELLED",
+                    startsAt: duty.startsAt,
+                    endsAt: duty.endsAt,
+                  },
+                  select: { id: true },
+                });
+                if (
+                  fullCancellation &&
+                  (revision.proposedStartsAt.getTime() !==
+                    duty.startsAt.getTime() ||
+                    revision.proposedEndsAt.getTime() !== duty.endsAt.getTime())
+                )
+                  return { failure: "CONFLICT" as const };
                 const outsideException = await tx.dutyException.findFirst({
                   where: {
                     dutyPeriodId: duty.id,

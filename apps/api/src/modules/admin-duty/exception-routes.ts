@@ -3,6 +3,7 @@ import {
   adminDutyExceptionPathParamsSchema,
   adminDutyPathParamsSchema,
   createAdminDutyExceptionRequestSchema,
+  fullAdminDutyCancellationRequestSchema,
   updateAdminDutyExceptionRequestSchema,
   type AdminDutyException,
 } from "@wanzila/contracts";
@@ -146,6 +147,64 @@ export function registerAdminDutyExceptionRoutes(
     },
   );
 
+  app.post(
+    "/admin/duties/:id/full-cancellation",
+    { preHandler: mutationGuards },
+    async (request, reply) => {
+      const params = adminDutyPathParamsSchema.safeParse(request.params);
+      const input = fullAdminDutyCancellationRequestSchema.safeParse(
+        request.body ?? {},
+      );
+      if (!params.success || !input.success) return sendBadRequest(reply);
+      try {
+        const outcome = await options.prisma.$transaction(
+          async (tx) => {
+            const locked = await tx.$queryRaw<Array<{ id: string }>>`
+              SELECT id FROM DutyPeriod WHERE id = ${params.data.id} FOR UPDATE
+            `;
+            if (locked.length === 0) return { failure: "NOT_FOUND" as const };
+            const duty = await tx.dutyPeriod.findUniqueOrThrow({
+              where: { id: params.data.id },
+              select: { startsAt: true, endsAt: true, status: true },
+            });
+            if (duty.status !== "APPROVED")
+              return { failure: "CONFLICT" as const };
+            const existing = await tx.dutyException.findFirst({
+              where: {
+                dutyPeriodId: params.data.id,
+                kind: "CANCELLED",
+                startsAt: duty.startsAt,
+                endsAt: duty.endsAt,
+              },
+              select: exceptionSelect,
+            });
+            if (existing) return { data: serialize(existing), created: false };
+            const created = await tx.dutyException.create({
+              data: {
+                dutyPeriodId: params.data.id,
+                kind: "CANCELLED",
+                startsAt: duty.startsAt,
+                endsAt: duty.endsAt,
+                reason: input.data.reason ?? "Annulation complète de la garde",
+              },
+              select: exceptionSelect,
+            });
+            return { data: serialize(created), created: true };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+        );
+        if ("failure" in outcome)
+          return sendMutationFailure(reply, outcome.failure);
+        return reply.code(outcome.created ? 201 : 200).send({
+          data: outcome.data,
+        });
+      } catch (error) {
+        if (handlePrismaMutationError(reply, error)) return;
+        throw error;
+      }
+    },
+  );
+
   app.patch(
     "/admin/duties/:id/exceptions/:exceptionId",
     { preHandler: mutationGuards },
@@ -178,6 +237,16 @@ export function registerAdminDutyExceptionRoutes(
             if (!existing) return { failure: "NOT_FOUND" as const };
             if (duty.status !== "APPROVED")
               return { failure: "CONFLICT" as const };
+            const fullCancellation = await tx.dutyException.findFirst({
+              where: {
+                dutyPeriodId: params.data.id,
+                kind: "CANCELLED",
+                startsAt: duty.startsAt,
+                endsAt: duty.endsAt,
+              },
+              select: { id: true },
+            });
+            if (fullCancellation) return { failure: "CONFLICT" as const };
             const startsAt = input.data.startsAt
               ? new Date(input.data.startsAt)
               : existing.startsAt;

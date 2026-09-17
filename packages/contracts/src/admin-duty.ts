@@ -177,6 +177,10 @@ export const createAdminDutyExceptionRequestSchema = z
   .strict()
   .refine(validInterval, "endsAt must be strictly after startsAt.");
 
+export const fullAdminDutyCancellationRequestSchema = z
+  .object({ reason: text.max(255).optional() })
+  .strict();
+
 export const updateAdminDutyExceptionRequestSchema = z
   .object({
     kind: adminDutyExceptionKindSchema.optional(),

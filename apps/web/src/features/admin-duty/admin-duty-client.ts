@@ -14,6 +14,7 @@ import {
   createAdminDutyExceptionRequestSchema,
   createAdminDutyRevisionRequestSchema,
   createAdminScheduleSourceRequestSchema,
+  fullAdminDutyCancellationRequestSchema,
   updateAdminDutyRequestSchema,
   updateAdminDutyExceptionRequestSchema,
   updateAdminScheduleSourceRequestSchema,
@@ -172,6 +173,18 @@ export async function saveException(
         : `/admin/duties/${dutyId}/exceptions`,
       { method: exceptionId ? "PATCH" : "POST", body: JSON.stringify(body) },
     ),
+  ).data;
+}
+
+export async function cancelFullDuty(
+  dutyId: string,
+): Promise<AdminDutyException> {
+  const body = fullAdminDutyCancellationRequestSchema.parse({});
+  return adminDutyExceptionResponseSchema.parse(
+    await request(`/admin/duties/${dutyId}/full-cancellation`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   ).data;
 }
 

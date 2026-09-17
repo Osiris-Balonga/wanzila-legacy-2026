@@ -96,10 +96,26 @@ export function resolveDutyState(
     return { state: "UNCERTAIN", sourceFreshness };
   }
 
-  const applicableExceptions = (duty.exceptions ?? []).filter((exception) => {
+  const exceptions = duty.exceptions ?? [];
+  for (const exception of exceptions) {
     assertValidInterval(exception.startsAt, exception.endsAt, "Duty exception");
-    return isInInterval(exception.startsAt, exception.endsAt, options.at);
-  });
+  }
+
+  // A full cancellation is an immutable administrative override. Its persisted
+  // row may overlap earlier partial exceptions, which remain as history.
+  const fullCancellations = exceptions.filter(
+    (exception) =>
+      exception.kind === "CANCELLED" &&
+      exception.startsAt.getTime() === duty.startsAt.getTime() &&
+      exception.endsAt.getTime() === duty.endsAt.getTime(),
+  );
+  if (fullCancellations.length > 1) throw new AmbiguousDutyExceptionError();
+  if (fullCancellations.length === 1)
+    return { state: "CANCELLED", sourceFreshness };
+
+  const applicableExceptions = exceptions.filter((exception) =>
+    isInInterval(exception.startsAt, exception.endsAt, options.at),
+  );
 
   if (applicableExceptions.length > 1) {
     throw new AmbiguousDutyExceptionError();

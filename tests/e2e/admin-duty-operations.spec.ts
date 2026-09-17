@@ -85,9 +85,11 @@ async function mockSources(
 async function mockExceptionApi(
   page: Page,
   status: "APPROVED" | "PENDING" = "APPROVED",
+  initialExceptions: Array<Record<string, unknown>> = [],
 ) {
-  let exceptions: Array<Record<string, unknown>> = [];
+  let exceptions = initialExceptions;
   let saved: Record<string, unknown> | null = null;
+  let fullCancellationRequests = 0;
   await page.route(`**/api/v1/admin/duties/${dutyId}`, (route) =>
     route.fulfill({ json: { data: { ...duty, status } } }),
   );
@@ -111,7 +113,28 @@ async function mockExceptionApi(
     exceptions = [record];
     return route.fulfill({ status: 201, json: { data: record } });
   });
-  return { saved: () => saved };
+  await page.route(
+    `**/api/v1/admin/duties/${dutyId}/full-cancellation`,
+    (route) => {
+      fullCancellationRequests += 1;
+      const record = {
+        id: "00000000-0000-4000-8000-000000004907",
+        dutyPeriodId: dutyId,
+        kind: "CANCELLED",
+        startsAt: duty.startsAt,
+        endsAt: duty.endsAt,
+        reason: "Annulation complète de la garde",
+        createdAt: "2026-09-17T08:00:00.000Z",
+        updatedAt: "2026-09-17T08:00:00.000Z",
+      };
+      exceptions = [...exceptions, record];
+      return route.fulfill({ status: 201, json: { data: record } });
+    },
+  );
+  return {
+    saved: () => saved,
+    fullCancellationRequests: () => fullCancellationRequests,
+  };
 }
 
 test("source management creates and edits a dated source from the real contract", async ({
@@ -180,11 +203,48 @@ test("exceptions require an approved duty, validate bounds and confirm full canc
   await expect(
     page.getByRole("region", { name: "Liste des exceptions" }),
   ).toContainText("Annulation");
-  expect(api.saved()).toMatchObject({
-    kind: "CANCELLED",
-    startsAt: duty.startsAt,
-    endsAt: duty.endsAt,
-  });
+  expect(api.fullCancellationRequests()).toBe(1);
+  expect(api.saved()).toBeNull();
+});
+
+test("full cancellation remains available after a partial exception and preserves its history", async ({
+  page,
+}) => {
+  const partial = {
+    id: exceptionId,
+    dutyPeriodId: dutyId,
+    kind: "UNAVAILABLE",
+    startsAt: "2026-09-17T18:00:00.000Z",
+    endsAt: "2026-09-17T20:00:00.000Z",
+    reason: "Fermeture annoncée",
+    createdAt: "2026-09-17T08:00:00.000Z",
+    updatedAt: "2026-09-17T08:00:00.000Z",
+  };
+  const api = await mockExceptionApi(page, "APPROVED", [partial]);
+  await page.goto(`/admin/gardes/${dutyId}/exceptions`);
+  await expect(
+    page.getByRole("button", { name: "Annuler toute la garde" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Annuler toute la garde" }).click();
+  await page.getByRole("button", { name: "Confirmer l’annulation" }).click();
+  const list = page.getByRole("region", { name: "Liste des exceptions" });
+  await expect(list).toContainText("Fermeture annoncée");
+  await expect(list).toContainText("Annulation complète");
+  await expect(page.getByRole("note")).toContainText(/historique/i);
+  await expect(
+    page.getByRole("button", { name: "Annuler toute la garde" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Formulaire d’exception" }),
+  ).toHaveCount(0);
+  await expect(list.getByRole("button", { name: /modifier/i })).toHaveCount(0);
+  expect(api.fullCancellationRequests()).toBe(1);
+  await page.setViewportSize({ width: 390, height: 900 });
+  const capture = test
+    .info()
+    .outputPath("visual-evidence", "admin-duty-full-cancellation-390.png");
+  await mkdir(dirname(capture), { recursive: true });
+  await page.screenshot({ path: capture, fullPage: true });
 });
 
 test("source and exception pages reflow without horizontal overflow", async ({
@@ -289,8 +349,7 @@ test("an existing exception can be corrected and a conflict reloads server data"
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Annuler toute la garde" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("note")).toContainText(/chevaucher/i);
+  ).toBeEnabled();
 });
 
 for (const surface of ["sources", "exceptions"] as const) {

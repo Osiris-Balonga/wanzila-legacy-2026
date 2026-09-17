@@ -109,6 +109,36 @@ describe("duty state", () => {
     );
   });
 
+  it("gives a full cancellation priority over preserved partial exceptions", () => {
+    const partial = {
+      kind: "UNAVAILABLE" as const,
+      startsAt: new Date("2026-09-14T11:00:00.000Z"),
+      endsAt: new Date("2026-09-14T13:00:00.000Z"),
+    };
+    const full = { kind: "CANCELLED" as const, startsAt, endsAt };
+
+    for (const exceptions of [
+      [partial, full],
+      [full, partial],
+    ]) {
+      for (const at of [startsAt, partial.startsAt, partial.endsAt]) {
+        expect(resolve({ exceptions }, at).state).toBe("CANCELLED");
+        expect(
+          isDutyActive(
+            { startsAt, endsAt, status: "APPROVED", exceptions },
+            {
+              at,
+              sourceFreshnessMaxAgeMs: 60_000,
+            },
+          ),
+        ).toBe(false);
+      }
+    }
+    expect(() => resolve({ exceptions: [full, full] })).toThrow(
+      AmbiguousDutyExceptionError,
+    );
+  });
+
   it("reports source freshness without changing the duty availability state", () => {
     const stale = resolve({
       sourceObservedAt: new Date("2026-09-14T10:00:00.000Z"),
