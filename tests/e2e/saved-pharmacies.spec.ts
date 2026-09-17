@@ -173,6 +173,37 @@ test("saved page is responsive, has real MapLibre, and links to detail/route", a
   }
 });
 
+test("sorting and searching update the saved list and map together", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
+    { key: storageKey, ids: [jagger, mavre, centre] },
+  );
+  await page.goto("/enregistrees");
+  const names = page.locator(".saved-page__list h2");
+  await expect(names).toHaveText([
+    "Pharmacie de nuit Jagger",
+    "Pharmacie Mavré",
+    "Pharmacie du Centre",
+  ]);
+  await page
+    .getByRole("combobox", { name: "Trier les pharmacies" })
+    .selectOption("district");
+  await expect(names).toHaveText([
+    "Pharmacie du Centre",
+    "Pharmacie Mavré",
+    "Pharmacie de nuit Jagger",
+  ]);
+  await page
+    .getByRole("searchbox", {
+      name: "Rechercher dans mes pharmacies enregistrées",
+    })
+    .fill("M’Foa");
+  await expect(names).toHaveText(["Pharmacie Mavré"]);
+  await expect(page.locator(".pharmacy-map-marker")).toHaveCount(1);
+});
+
 test("404 cleans vanished IDs, while offline IDs remain retryable", async ({
   page,
 }) => {
