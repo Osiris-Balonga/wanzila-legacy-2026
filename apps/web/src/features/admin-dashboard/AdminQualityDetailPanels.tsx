@@ -132,11 +132,14 @@ function SourcesPanel({
   const sources = detail?.sources;
   return (
     <section aria-label="Sources de planning" className="analytics-panel">
-      <div className="analytics-panel__heading">
+      <div className="analytics-panel__heading analytics-panel__heading--sources">
         <div>
           <h2>Sources de planning</h2>
           <p>Sources enregistrées et gardes en cours attribuées.</p>
         </div>
+        <Button asChild className="analytics-source-action" variant="secondary">
+          <a href="/admin/gardes/sources">Ajouter une source</a>
+        </Button>
       </div>
       {detail && sources && (
         <>
