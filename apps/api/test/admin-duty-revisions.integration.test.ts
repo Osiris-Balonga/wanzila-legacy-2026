@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import type { OutgoingHttpHeaders } from "node:http";
 import { promisify } from "node:util";
+import { pharmacyListResponseSchema } from "@wanzila/contracts";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import {
@@ -568,10 +569,7 @@ describe.runIf(Boolean(databaseUrl))(
         review(duty.id, revisionId, "approve"),
       ]);
       expect(approval.statusCode).toBe(200);
-      const body = publicList.json() as {
-        data: Array<{ id: string }>;
-        pagination: { total: number };
-      };
+      const body = pharmacyListResponseSchema.parse(publicList.json());
       expect(body.pagination.total).toBe(body.data.length);
       expect(body.data.length).toBeLessThanOrEqual(1);
     });
