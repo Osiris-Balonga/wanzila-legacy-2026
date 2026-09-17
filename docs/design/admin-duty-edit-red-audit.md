@@ -35,10 +35,10 @@ The lead confirmed that #73 GREEN covers the APPROVED→revision path only. A
 PENDING duty at the edit URL must get an honest accessible non-editor state and
 a return link; its editor will be a separate issue if needed.
 
-The #72 API contract is proposed in PR #74 but is not yet merged into this
-branch. The deterministic fixtures now match its exact response shape:
+The #72 API contract was merged into `dev` through PR #74 before the GREEN
+implementation. The deterministic fixtures match its response shape:
 `before`/`proposed` snapshots, `submissionNote`, actor objects with `id` and
 `displayName`, and `baseVersion` on the revision. GET duty detail still uses
 `adminDutySchema` and does not expose a version. The POST proposal sends
 `sourceId`, `startsAt`, `endsAt` and `note`. Behavioral assertions should remain
-when the reviewed contract lands.
+in the GREEN implementation.

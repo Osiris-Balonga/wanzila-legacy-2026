@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { resolve } from "node:path";
 
 const dutyId = "00000000-0000-4000-8000-000000007301";
 const pharmacyId = "00000000-0000-4000-8000-000000007302";
@@ -98,21 +99,23 @@ type MockOptions = {
 };
 
 async function mockEditApi(page: Page, options: MockOptions = {}) {
-  await page.route("**/maps/wanzila-style.json", (route) =>
-    route.fulfill({
-      json: {
-        version: 8,
-        sources: {},
-        layers: [
-          {
-            id: "ground",
-            type: "background",
-            paint: { "background-color": "#edf0f8" },
-          },
-        ],
-      },
-    }),
-  );
+  if (!process.env.WANZILA_DUTY_LIVE_MAP) {
+    await page.route("**/maps/wanzila-style.json", (route) =>
+      route.fulfill({
+        json: {
+          version: 8,
+          sources: {},
+          layers: [
+            {
+              id: "ground",
+              type: "background",
+              paint: { "background-color": "#edf0f8" },
+            },
+          ],
+        },
+      }),
+    );
+  }
   await page.route(`**${dutyPath}`, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     await options.holdDuty;
@@ -212,6 +215,12 @@ test("APPROVED page separates published canonical values, editable proposal and 
   await expect(
     page.getByRole("region", { name: /informations de la garde/i }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Date et heure de début" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Date et heure de fin" }),
+  ).toBeVisible();
   const history = page.getByRole("region", {
     name: /historique des modifications/i,
   });
@@ -290,7 +299,7 @@ test("history pages are loaded from the revision ledger, not a local slice", asy
     });
   });
   await page.goto(editUrl);
-  await expect(page.getByText("Motif réel 1")).toBeVisible();
+  await expect(page.getByText(/Motif réel 1$/)).toBeVisible();
   const nextPage = page.waitForRequest(
     (request) =>
       new URL(request.url()).pathname === revisionsPath &&
@@ -299,7 +308,7 @@ test("history pages are loaded from the revision ledger, not a local slice", asy
   await page.getByRole("button", { name: "Page suivante" }).click();
   await nextPage;
   await expect(page.getByText("Motif réel page deux")).toBeVisible();
-  await expect(page.getByText("Motif réel 1")).toHaveCount(0);
+  await expect(page.getByText(/Motif réel 1$/)).toHaveCount(0);
 });
 
 test("a PENDING duty gets an honest non-editor state with a way back", async ({
@@ -422,6 +431,9 @@ test("an existing PENDING revision cannot be overwritten and review is confirmed
   await expect(
     page.getByRole("button", { name: "Soumettre la révision" }),
   ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Soumettre la révision" }),
+  ).toHaveCSS("background-color", "rgb(232, 227, 244)");
   const reject = page.getByRole("button", { name: /rejeter la révision/i });
   await reject.click();
   const dialog = page.getByRole("alertdialog");
@@ -434,9 +446,7 @@ test("an existing PENDING revision cannot be overwritten and review is confirmed
   await expect(
     page.getByRole("button", { name: "Soumettre la révision" }),
   ).toBeEnabled();
-  expect(
-    await page.evaluate(() => document.activeElement?.closest("main") !== null),
-  ).toBe(true);
+  await expect(page.locator("#duty-edit-history-heading")).toBeFocused();
   expect(refreshes).toBeGreaterThanOrEqual(2);
 });
 
@@ -445,6 +455,10 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
 }) => {
   let approvedOnServer = false;
   let canonicalReads = 0;
+  let releaseApproval!: () => void;
+  const holdApproval = new Promise<void>((resolve) => {
+    releaseApproval = resolve;
+  });
   await mockEditApi(page, { revisions: [revision] });
   await page.unroute(`**${revisionsPath}?*`);
   await page.route(`**${revisionsPath}?*`, (route) =>
@@ -475,20 +489,24 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
       },
     });
   });
-  await page.route(`**${revisionsPath}/${revisionId}/approve`, (route) => {
-    approvedOnServer = true;
-    return route.fulfill({
-      json: {
-        data: {
-          ...revision,
-          status: "APPROVED",
-          reviewedBy: reviewer,
-          reviewedAt: "2026-09-16T13:00:00.000Z",
-          reviewNote: null,
+  await page.route(
+    `**${revisionsPath}/${revisionId}/approve`,
+    async (route) => {
+      await holdApproval;
+      approvedOnServer = true;
+      return route.fulfill({
+        json: {
+          data: {
+            ...revision,
+            status: "APPROVED",
+            reviewedBy: reviewer,
+            reviewedAt: "2026-09-16T13:00:00.000Z",
+            reviewNote: null,
+          },
         },
-      },
-    });
-  });
+      });
+    },
+  );
   await page.goto(editUrl);
   await page.getByRole("button", { name: /approuver la révision/i }).click();
   const confirmation = page.getByRole("alertdialog");
@@ -503,9 +521,16 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
     .getByRole("button", { name: /confirmer l.approbation/i })
     .click();
   await approval;
+  await expect(confirmation).toBeVisible();
+  await expect(
+    confirmation.getByRole("button", { name: "Validation…" }),
+  ).toBeDisabled();
+  releaseApproval();
   await expect(page.getByText("Garde publiée", { exact: true })).toBeVisible();
   await expect(page.getByText(/révision approuvée/i)).toBeVisible();
-  expect(canonicalReads).toBeGreaterThanOrEqual(2);
+  await expect(page.getByLabel("Date de début")).toHaveValue("2026-09-18");
+  await expect.poll(() => canonicalReads).toBeGreaterThanOrEqual(2);
+  await expect(page.locator("#duty-edit-history-heading")).toBeFocused();
 });
 
 test("409 on submit never claims publication and offers recovery", async ({
@@ -549,8 +574,16 @@ test("409 on review keeps PENDING and never claims proposed values are live", as
   await expect(page.getByRole("alert")).toContainText(
     /conflit|modifi|version/i,
   );
+  await expect(page.getByRole("alertdialog")).toBeVisible();
   await expect(page.getByText(/révision en attente/i)).toBeVisible();
   await expect(page.getByText(/révision approuvée/i)).toHaveCount(0);
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Annuler" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /approuver la révision/i }),
+  ).toBeFocused();
 });
 
 test("loading, 401, 403, 404, malformed 200 and retry are distinct states", async ({
@@ -604,7 +637,7 @@ test("loading, 401, 403, 404, malformed 200 and retry are distinct states", asyn
 test("reference regions reflow without overflow at 320, 390, 768 and 1440", async ({
   page,
 }) => {
-  await mockEditApi(page, { revisions: [revision] });
+  await mockEditApi(page, { revisions: [] });
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(editUrl);
@@ -629,8 +662,21 @@ test("reference regions reflow without overflow at 320, 390, 768 and 1440", asyn
     expect(formBox).not.toBeNull();
     expect(historyBox).not.toBeNull();
     if (!formBox || !historyBox) continue;
-    if (width >= 1440)
+    if (width >= 1440) {
       expect(historyBox.x).toBeGreaterThan(formBox.x + formBox.width);
+      const pharmacyBox = await page
+        .getByRole("region", { name: "Pharmacie", exact: true })
+        .boundingBox();
+      const statusBox = await page
+        .getByText("Garde publiée", { exact: true })
+        .boundingBox();
+      expect(pharmacyBox).not.toBeNull();
+      expect(statusBox).not.toBeNull();
+      if (pharmacyBox && statusBox) {
+        expect(pharmacyBox.y).toBeLessThan(formBox.y);
+        expect(statusBox.y + statusBox.height).toBeLessThan(pharmacyBox.y);
+      }
+    }
     if (width <= 390) expect(historyBox.y).toBeGreaterThan(formBox.y);
   }
   const submit = page.getByRole("button", { name: "Soumettre la révision" });
@@ -642,26 +688,38 @@ test("reference regions reflow without overflow at 320, 390, 768 and 1440", asyn
   await expect(submit).toHaveCSS("color", "rgb(255, 255, 255)");
 });
 
-test("diagnostic screenshots for populated and legacy edit states", async ({
+test("visual evidence for populated and legacy edit states", async ({
   page,
 }, testInfo) => {
   test.skip(
-    !process.env.WANZILA_DUTY_EDIT_CAPTURE,
-    "Manual RED/GREEN evidence only",
+    !process.env.WANZILA_DUTY_EDIT_CAPTURE ||
+      testInfo.project.name !== "desktop",
+    "Manual visual evidence only",
   );
   for (const [name, revisions] of [
     ["populated", [revision]],
     ["legacy", []],
   ] as const) {
     await mockEditApi(page, { revisions: [...revisions] });
-    for (const width of [320, 390, 768, 1440]) {
+    const widths = process.env.WANZILA_DUTY_LIVE_MAP
+      ? [390, 1440, 1586]
+      : [320, 390, 768, 1440];
+    for (const width of widths) {
       await page.setViewportSize({ width, height: width < 768 ? 900 : 992 });
       await page.goto(editUrl);
       await expect(
         page.getByRole("heading", { name: "Modifier une garde" }),
       ).toBeVisible();
+      await expect(
+        page.getByRole("region", {
+          name: `Carte de localisation de ${pharmacy.name}`,
+        }),
+      ).toHaveAttribute("data-map-status", "ready", { timeout: 20_000 });
+      const filename = `duty-edit-${name}-${width}${process.env.WANZILA_DUTY_LIVE_MAP ? "-live-map" : ""}.png`;
       await page.screenshot({
-        path: testInfo.outputPath(`duty-edit-${name}-${width}.png`),
+        path: process.env.WANZILA_DUTY_EDIT_EVIDENCE
+          ? resolve(process.cwd(), "docs/design/evidence/issue-73", filename)
+          : testInfo.outputPath(filename),
         animations: "disabled",
         fullPage: true,
       });

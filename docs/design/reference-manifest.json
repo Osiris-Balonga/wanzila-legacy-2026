@@ -241,18 +241,30 @@
     {
       "file": "admin-duty-edit.png",
       "route": "/admin/gardes/:id/modifier",
-      "routeStatus": "proposed",
-      "ownerIssue": 24,
+      "routeStatus": "pilot-with-reference-regions",
+      "ownerIssue": 73,
       "fixture": "admin-duty-edit",
       "requiredRegions": [
         "admin shell",
-        "existing period",
-        "editable fields",
+        "published duty",
+        "revision form",
         "source",
-        "validation",
-        "save action"
+        "pharmacy and location",
+        "revision history",
+        "submit for review"
       ],
-      "states": ["editing", "invalid", "saving", "conflict"],
+      "states": [
+        "approved editing",
+        "pending revision",
+        "legacy history unknown",
+        "review confirmation",
+        "invalid",
+        "saving",
+        "conflict",
+        "auth",
+        "error",
+        "pending duty non-editor"
+      ],
       "approvedDeviations": []
     },
     {

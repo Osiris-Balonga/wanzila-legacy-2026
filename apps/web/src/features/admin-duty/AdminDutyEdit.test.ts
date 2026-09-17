@@ -5,7 +5,7 @@ import { AdminShell } from "../../layouts/AdminShell.js";
 
 const dutyId = "00000000-0000-4000-8000-000000007301";
 
-describe("issue #73 approved-duty edit route (RED)", () => {
+describe("issue #73 approved-duty edit route", () => {
   it("routes a duty edit URL to its own page inside the admin shell", () => {
     const markup = renderToStaticMarkup(
       createElement(AdminShell, {
