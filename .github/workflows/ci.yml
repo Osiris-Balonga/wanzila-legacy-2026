@@ -30,7 +30,7 @@ jobs:
             echo "Only dev may open a pull request into main."
             exit 1
           fi
-          if [[ "$BASE" == "dev" && ! "$HEAD" =~ ^(feature/(web|api|data|admin)/.+|fix/.+|test/.+|docs/.+|chore/.+|dependabot/.+)$ ]]; then
+          if [[ "$BASE" == "dev" && ! "$HEAD" =~ ^(feature/(web|api|data|admin|design)/.+|fix/.+|test/.+|docs/.+|chore/.+|dependabot/.+)$ ]]; then
             echo "Branches targeting dev must use an approved short-lived branch prefix."
             exit 1
           fi
