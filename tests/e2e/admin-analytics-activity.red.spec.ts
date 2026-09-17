@@ -193,7 +193,10 @@ test("the map uses every static point on its page, count-sized markers, unmapped
       markers.map((marker) => Math.round(marker.getBoundingClientRect().width)),
     );
   expect(markerSizes[0]).toBeGreaterThan(markerSizes[2]!);
-  await expect(map).not.toContainText(/position du visiteur|carte de chaleur/i);
+  await expect(map).toContainText(
+    /sans position de visiteur ni carte de chaleur/i,
+  );
+  await expect(map.locator(".maplibregl-heatmap-layer")).toHaveCount(0);
   const disclosure = map.getByText(/voir les pharmacies de cette page/i);
   await disclosure.click();
   const table = map.getByRole("table", {
@@ -224,6 +227,32 @@ test("map pagination reaches the twenty-first pharmacy without suggesting a comp
   expect(requests.at(-1)?.get("page")).toBe("2");
   await map.getByRole("button", { name: /page précédente/i }).click();
   await expect(map.locator(".analytics-map-marker")).toHaveCount(20);
+});
+
+test("a map page outside the new total returns to the last valid page once", async ({
+  page,
+}) => {
+  await mockOverview(page);
+  const requestedPages: number[] = [];
+  await page.route("**/api/v1/admin/analytics/activity**", async (route) => {
+    const currentPage = Number(
+      new URL(route.request().url()).searchParams.get("page"),
+    );
+    requestedPages.push(currentPage);
+    await route.fulfill({
+      json: analyticsActivityFixture("7d", {
+        page: currentPage,
+        many: currentPage === 1 && requestedPages.length === 1,
+      }),
+    });
+  });
+  await page.goto("/admin");
+  const map = page.getByRole("region", { name: "Carte d’activité" });
+  await expect(map).toContainText(/20 sur 21 pharmacies cartographiables/i);
+  await map.getByRole("button", { name: /page suivante/i }).click();
+  await expect(map).toContainText(/3 pharmacies cartographiables/i);
+  await expect(map.locator(".analytics-map-marker")).toHaveCount(3);
+  expect(requestedPages).toEqual([1, 2, 1]);
 });
 
 test("activity has one loading state and an honest zero-data state", async ({
