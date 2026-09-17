@@ -909,6 +909,18 @@
 }
 
 @media (max-width: 30rem) {
+  .analytics-detail-pagination {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .analytics-detail-pagination > span {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: center;
+  }
+  .analytics-detail-pagination [data-slot="button"] {
+    width: 100%;
+  }
   .analytics-heading {
     align-items: stretch;
     flex-direction: column;

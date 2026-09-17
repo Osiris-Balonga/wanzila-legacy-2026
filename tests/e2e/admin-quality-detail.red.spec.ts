@@ -373,6 +373,27 @@ test("detail retry refetches and recovers without reloading the overview", async
   expect(overviewRequests).toEqual(["7d"]);
 });
 
+test("the narrow source table can be scrolled with the keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await mockOverview(page);
+  await mockDetail(page);
+  await page.goto("/admin/qualite");
+  const scroll = page
+    .getByRole("region", { name: "Sources de planning" })
+    .getByRole("region", {
+      name: "Défilement horizontal du tableau des sources",
+    });
+  await expect(scroll).toBeVisible();
+  await scroll.focus();
+  await expect(scroll).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(() => scroll.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+});
+
 for (const width of [320, 390, 768, 1440]) {
   test(`quality details remain usable without document overflow at ${width}px`, async ({
     page,
@@ -396,21 +417,42 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(
       sources.getByRole("button", { name: /page suivante/i }),
     ).toBeFocused();
-    if (width <= 390) {
-      const scroll = sources.getByRole("region", {
-        name: "Défilement horizontal du tableau des sources",
-      });
-      await scroll.focus();
-      await page.keyboard.press("ArrowRight");
-      await expect
-        .poll(() => scroll.evaluate((element) => element.scrollLeft))
-        .toBeGreaterThan(0);
-    }
     await page.evaluate(() => {
       (document.activeElement as HTMLElement | null)?.blur();
       window.scrollTo(0, 0);
     });
     await page.evaluate(async () => document.fonts.ready);
+    if (width <= 390) {
+      const position = await sources
+        .getByRole("region", {
+          name: "Défilement horizontal du tableau des sources",
+        })
+        .evaluate((element) => {
+          const header = element.querySelector("thead th")!;
+          const firstName = element.querySelector("tbody th strong")!;
+          return {
+            scrollLeft: element.scrollLeft,
+            viewportLeft: element.getBoundingClientRect().left,
+            viewportRight: element.getBoundingClientRect().right,
+            headerLeft: header.getBoundingClientRect().left,
+            firstNameLeft: firstName.getBoundingClientRect().left,
+            firstNameRight: firstName.getBoundingClientRect().right,
+          };
+        });
+      expect(position.scrollLeft, JSON.stringify(position)).toBe(0);
+      expect(
+        position.headerLeft,
+        JSON.stringify(position),
+      ).toBeGreaterThanOrEqual(position.viewportLeft - 1);
+      expect(
+        position.firstNameLeft,
+        JSON.stringify(position),
+      ).toBeGreaterThanOrEqual(position.viewportLeft - 1);
+      expect(
+        position.firstNameRight,
+        JSON.stringify(position),
+      ).toBeLessThanOrEqual(position.viewportRight + 1);
+    }
     const path = testInfo.outputPath(
       "visual-evidence",
       `quality-detail-${width}.png`,
