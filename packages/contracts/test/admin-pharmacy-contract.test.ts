@@ -68,4 +68,31 @@ describe("admin pharmacy contracts", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("requires complete verified provenance and a first-party photo path", () => {
+    expect(
+      createAdminPharmacyRequestSchema.safeParse({
+        ...pharmacyInput,
+        recordProvenance: { source: "Registre local" },
+      }).success,
+    ).toBe(false);
+    expect(
+      createAdminPharmacyRequestSchema.safeParse({
+        ...pharmacyInput,
+        photo: {
+          assetPath: "https://example.org/photo.jpg",
+          source: "Auteur",
+          credit: "Auteur",
+          rights: "Autorisation écrite",
+          verifiedAt: "2026-09-15T10:00:00.000Z",
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      updateAdminPharmacyRequestSchema.parse({
+        recordProvenance: null,
+        photo: null,
+      }),
+    ).toEqual({ recordProvenance: null, photo: null });
+  });
 });
