@@ -102,9 +102,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .map-tools { position:absolute; z-index:500; right:20px; bottom:28px; display:flex; flex-direction:column; gap:9px; }
 .map-tools button { display:grid; place-items:center; width:45px; height:45px; border:0; border-radius:50%; color:var(--purple); background:#fff; box-shadow:0 3px 17px #20204030; transition:transform .18s,background-color .18s; }
 .map-tools button:hover { background:var(--purple-soft); }
-.wanzila-pin, .wanzila-user-pin { background:transparent; filter:drop-shadow(0 4px 5px #34256555); transition:filter .18s,opacity .18s; }
+.wanzila-pin { background:transparent; filter:drop-shadow(0 4px 5px #34256555); transition:filter .18s,opacity .18s; }
 .wanzila-pin.is-selected { filter:drop-shadow(0 0 9px #7145edcc); z-index:650!important; }
 .wanzila-pin.is-closed { filter:grayscale(1) drop-shadow(0 3px 4px #33415533); opacity:.58; }
+.wanzila-user-location { border:0; background:transparent; }
+.wanzila-user-location__pulse { position:absolute; top:10px; left:10px; width:24px; height:24px; border-radius:50%; background:#1686ed75; animation:user-location-pulse 2.4s ease-out infinite; }
+.wanzila-user-location__dot { position:absolute; top:13px; left:13px; width:18px; height:18px; border:3px solid #fff; border-radius:50%; background:#1686ed; box-shadow:0 2px 7px #1f4f8a88; }
+@keyframes user-location-pulse { 0% { transform:scale(.85); opacity:.7; } 75%,100% { transform:scale(2.1); opacity:0; } }
 .mobile-search, .mobile-sheet, .mobile-tabs, .pharmacy-details__preview { display:none; }
 @media (max-width:900px) {
   .wanzila-app { display:block; height:100dvh; min-height:0; }
@@ -167,4 +171,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .mobile-sheet, .mobile-tabs, .desktop-rail__tabs button, .action-button, .action-tile, .map-tools button, .mobile-tabs button { transition-duration:0.01ms; }
   .desktop-panel__inner, .desktop-panel__head, .desktop-panel__list { animation:none; }
   .wanzila-pin, .leaflet-marker-icon { transition:none; }
+  .wanzila-user-location__pulse { animation:none; transform:scale(1.4); opacity:.3; }
 }

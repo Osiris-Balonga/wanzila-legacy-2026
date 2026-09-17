@@ -13,7 +13,11 @@ const marker = (pharmacy: MapProps['pharmacies'][number], selected: boolean) => 
   className: `wanzila-pin${selected ? ' is-selected' : ''}${getAvailability(pharmacy) === 'closed' ? ' is-closed' : ''}`,
   iconSize: [58, 60], iconAnchor: [29, 53],
 })
-const userIcon = L.icon({ iconUrl: '/markers/user.webp', className: 'wanzila-user-pin', iconSize: [58, 60], iconAnchor: [29, 53] })
+const userIcon = L.divIcon({
+  className: 'wanzila-user-location',
+  html: '<span class="wanzila-user-location__pulse"></span><span class="wanzila-user-location__dot"></span>',
+  iconSize: [44, 44], iconAnchor: [22, 22],
+})
 
 function MapCamera({ route, pharmacies, resetKey, restoreView }: Pick<MapProps, 'route' | 'pharmacies' | 'resetKey' | 'restoreView'>) {
   const map = useMap()
@@ -24,7 +28,7 @@ function MapCamera({ route, pharmacies, resetKey, restoreView }: Pick<MapProps, 
     } else if (route?.coordinates && route.coordinates.length > 1) {
       const mobile = map.getSize().x < 720
       map.fitBounds(L.latLngBounds(route.coordinates), mobile
-        ? { paddingTopLeft: [30, 125], paddingBottomRight: [30, 305], maxZoom: 15 }
+        ? { paddingTopLeft: [30, 125], paddingBottomRight: [30, Math.min(405, Math.max(185, map.getSize().y - 190))], maxZoom: 15 }
         : { padding: [56, 56], maxZoom: 16 })
     } else {
       const points = pharmacies.filter(hasCoordinates)
@@ -58,7 +62,7 @@ export function LeafletMap({ pharmacies, route, userPosition, height = '100%', c
         icon={marker(pharmacy, pharmacy.id === focusPharmacy?.id)}
         eventHandlers={{ click: () => onMarkerClick?.(pharmacy) }}
       />)}
-      {userPosition && <Marker position={userPosition} icon={userIcon} />}
+      {userPosition && <Marker position={userPosition} icon={userIcon} title="Votre position" />}
       {route && <Polyline positions={route.coordinates} pathOptions={{ color: '#6537e9', weight: 6, opacity: 0.9 }} />}
     </MapContainer>
   </div>
