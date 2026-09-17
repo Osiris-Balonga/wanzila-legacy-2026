@@ -91,6 +91,7 @@ describe.runIf(Boolean(databaseUrl))(
     let app: Awaited<ReturnType<typeof createApp>>;
     let cookie: string;
     let adminId: string;
+    let currentTime: Date;
 
     beforeAll(async () => {
       const command = "pnpm --filter @wanzila/api db:migrate";
@@ -105,6 +106,7 @@ describe.runIf(Boolean(databaseUrl))(
     }, 60_000);
 
     beforeEach(async () => {
+      currentTime = at;
       prisma = createPrismaClient(databaseUrl);
       const revisionTable = await prisma.$queryRawUnsafe<
         Array<{ tableName: string }>
@@ -154,7 +156,7 @@ describe.runIf(Boolean(databaseUrl))(
       app = await createApp({
         prisma,
         webOrigin: WEB_ORIGIN,
-        now: () => at,
+        now: () => currentTime,
         nodeEnvironment: "test",
       });
       const signedIn = await app.inject({
@@ -215,6 +217,16 @@ describe.runIf(Boolean(databaseUrl))(
 
     it("keeps the approved canonical duty public and all summary/quality counts unchanged while revision is PENDING", async () => {
       const duty = await approvedDuty();
+      const qualityBefore = await app.inject({
+        method: "GET",
+        url: "/api/v1/admin/analytics/quality",
+        headers: { cookie },
+      });
+      const overviewBefore = await app.inject({
+        method: "GET",
+        url: "/api/v1/admin/analytics/overview",
+        headers: { cookie },
+      });
       const created = await submit(duty.id);
       expect(created.statusCode).toBe(201);
       const revision = data<{
@@ -272,12 +284,20 @@ describe.runIf(Boolean(databaseUrl))(
         headers: { cookie },
       });
       expect(quality.statusCode).toBe(200);
+      expect(
+        data<{ coverage: unknown; sources: unknown }>(quality),
+      ).toMatchObject(
+        data<{ coverage: unknown; sources: unknown }>(qualityBefore),
+      );
       const overview = await app.inject({
         method: "GET",
         url: "/api/v1/admin/analytics/overview",
         headers: { cookie },
       });
       expect(overview.statusCode).toBe(200);
+      expect(data<{ quality: unknown }>(overview).quality).toEqual(
+        data<{ quality: unknown }>(overviewBefore).quality,
+      );
       const detail = await app.inject({
         method: "GET",
         url: `/api/v1/admin/duties/${duty.id}`,
@@ -359,17 +379,48 @@ describe.runIf(Boolean(databaseUrl))(
           await prisma.dutyPeriod.findUniqueOrThrow({ where: { id: duty.id } })
         ).startsAt.toISOString(),
       ).toBe(START);
+      currentTime = new Date(at.getTime() + 1000);
       const second = await submit(duty.id);
       expect(second.statusCode).toBe(201);
       const page = await app.inject({
         method: "GET",
-        url: `${revisionUrl(duty.id)}?page=2&pageSize=1`,
+        url: `${revisionUrl(duty.id)}?page=1&pageSize=1`,
         headers: { cookie },
       });
       expect(page.json()).toMatchObject({
         pagination: { total: 2, totalPages: 2 },
         data: [{ status: "PENDING" }],
       });
+      const olderPage = await app.inject({
+        method: "GET",
+        url: `${revisionUrl(duty.id)}?page=2&pageSize=1`,
+        headers: { cookie },
+      });
+      expect(olderPage.json()).toMatchObject({
+        data: [{ id: first.id, status: "REJECTED" }],
+      });
+    });
+
+    it("does not synthesize a legacy approval actor, date or note", async () => {
+      const duty = await approvedDuty();
+      const history = await app.inject({
+        method: "GET",
+        url: revisionUrl(duty.id),
+        headers: { cookie },
+      });
+      expect(history.json()).toEqual({
+        data: [],
+        pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      });
+      const detail = await app.inject({
+        method: "GET",
+        url: `/api/v1/admin/duties/${duty.id}`,
+        headers: { cookie },
+      });
+      expect(detail.json()).toMatchObject({ data: { id: duty.id } });
+      expect(JSON.stringify(detail.json())).not.toMatch(
+        /submittedBy|reviewedBy|reviewNote/,
+      );
     });
 
     it("serializes two submissions and two approvals of the same revision", async () => {

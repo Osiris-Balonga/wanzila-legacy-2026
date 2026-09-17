@@ -38,13 +38,15 @@ enum ReportStatus {
 }
 
 model AdminUser {
-  id           String   @id @default(uuid()) @db.Char(36)
-  email        String   @unique @db.VarChar(320)
-  passwordHash String   @db.VarChar(255)
-  displayName  String   @db.VarChar(120)
-  createdAt    DateTime @default(now()) @db.DateTime(3)
-  updatedAt    DateTime @updatedAt @db.DateTime(3)
-  sessions     AdminSession[]
+  id                     String         @id @default(uuid()) @db.Char(36)
+  email                  String         @unique @db.VarChar(320)
+  passwordHash           String         @db.VarChar(255)
+  displayName            String         @db.VarChar(120)
+  createdAt              DateTime       @default(now()) @db.DateTime(3)
+  updatedAt              DateTime       @updatedAt @db.DateTime(3)
+  sessions               AdminSession[]
+  submittedDutyRevisions DutyRevision[] @relation("DutyRevisionSubmitter")
+  reviewedDutyRevisions  DutyRevision[] @relation("DutyRevisionReviewer")
 }
 
 model AdminSession {
@@ -90,20 +92,50 @@ model ScheduleSource {
 }
 
 model DutyPeriod {
-  id         String         @id @default(uuid()) @db.Char(36)
-  pharmacyId String         @db.Char(36)
-  sourceId   String?        @db.Char(36)
-  startsAt   DateTime       @db.DateTime(3)
-  endsAt     DateTime       @db.DateTime(3)
-  status     ReviewStatus   @default(PENDING)
-  createdAt  DateTime       @default(now()) @db.DateTime(3)
-  updatedAt  DateTime       @updatedAt @db.DateTime(3)
-  pharmacy   Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  id         String          @id @default(uuid()) @db.Char(36)
+  pharmacyId String          @db.Char(36)
+  sourceId   String?         @db.Char(36)
+  startsAt   DateTime        @db.DateTime(3)
+  endsAt     DateTime        @db.DateTime(3)
+  status     ReviewStatus    @default(PENDING)
+  version    Int             @default(0) @db.UnsignedInt
+  createdAt  DateTime        @default(now()) @db.DateTime(3)
+  updatedAt  DateTime        @updatedAt @db.DateTime(3)
+  pharmacy   Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   source     ScheduleSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   exceptions DutyException[]
+  revisions  DutyRevision[]
 
   @@index([startsAt, endsAt, status])
   @@index([pharmacyId, startsAt, endsAt])
+}
+
+model DutyRevision {
+  id               String       @id @default(uuid()) @db.Char(36)
+  dutyPeriodId     String       @db.Char(36)
+  status           ReviewStatus @default(PENDING)
+  openRevisionKey  String?      @db.Char(1)
+  baseVersion      Int          @db.UnsignedInt
+  beforeSourceId   String?      @db.Char(36)
+  beforeStartsAt   DateTime     @db.DateTime(3)
+  beforeEndsAt     DateTime     @db.DateTime(3)
+  proposedSourceId String?      @db.Char(36)
+  proposedStartsAt DateTime     @db.DateTime(3)
+  proposedEndsAt   DateTime     @db.DateTime(3)
+  submissionNote   String       @db.VarChar(500)
+  submittedById    String       @db.Char(36)
+  submittedByName  String       @db.VarChar(120)
+  submittedAt      DateTime     @db.DateTime(3)
+  reviewNote       String?      @db.VarChar(500)
+  reviewedById     String?      @db.Char(36)
+  reviewedByName   String?      @db.VarChar(120)
+  reviewedAt       DateTime?    @db.DateTime(3)
+  dutyPeriod       DutyPeriod   @relation(fields: [dutyPeriodId], references: [id], onDelete: Restrict)
+  submittedBy      AdminUser    @relation("DutyRevisionSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewedBy       AdminUser?   @relation("DutyRevisionReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@unique([dutyPeriodId, openRevisionKey])
+  @@index([dutyPeriodId, submittedAt, id])
 }
 
 model DutyException {
