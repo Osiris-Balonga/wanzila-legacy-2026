@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
@@ -36,15 +36,47 @@ export function PharmacyDetailMap({
   interactive?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap>(null);
+  const createOriginMarkerRef = useRef<
+    ((element: HTMLElement) => MapLibreMarker) | null
+  >(null);
+  const originRef = useRef(origin);
+  const originMarkerRef = useRef<MapLibreMarker>(null);
+  originRef.current = origin;
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
+
+  const syncOriginMarker = useCallback(() => {
+    const map = mapRef.current;
+    const createMarker = createOriginMarkerRef.current;
+    if (!map || !createMarker) return;
+    const current = originRef.current;
+    if (!current || !hasValidCoordinates(current)) {
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
+      return;
+    }
+    if (!originMarkerRef.current) {
+      const element = document.createElement("span");
+      element.className =
+        "route-preview-map-origin route-preview-map-origin--current";
+      element.setAttribute("aria-label", "Votre position actuelle");
+      originMarkerRef.current = createMarker(element)
+        .setLngLat([current.longitude, current.latitude])
+        .addTo(map);
+    }
+    originMarkerRef.current.setLngLat([current.longitude, current.latitude]);
+  }, []);
+
+  useEffect(() => {
+    syncOriginMarker();
+  }, [origin?.latitude, origin?.longitude, syncOriginMarker]);
 
   useEffect(() => {
     let cancelled = false;
     let map: MapLibreMap | undefined;
     let marker: MapLibreMarker | undefined;
-    let originMarker: MapLibreMarker | undefined;
     let demonstrationOriginMarker: MapLibreMarker | undefined;
     let observer: ResizeObserver | undefined;
     void import("maplibre-gl")
@@ -59,6 +91,9 @@ export function PharmacyDetailMap({
           attributionControl: false,
           interactive,
         });
+        mapRef.current = map;
+        createOriginMarkerRef.current = (element) =>
+          new maplibre.Marker({ element });
         map.addControl(
           new maplibre.AttributionControl({ compact: false }),
           "bottom-left",
@@ -157,15 +192,7 @@ export function PharmacyDetailMap({
             .setLngLat(route.geometry.coordinates[0])
             .addTo(map);
         }
-        if (origin && hasValidCoordinates(origin)) {
-          const originElement = document.createElement("span");
-          originElement.className =
-            "route-preview-map-origin route-preview-map-origin--current";
-          originElement.setAttribute("aria-label", "Votre position actuelle");
-          originMarker = new maplibre.Marker({ element: originElement })
-            .setLngLat([origin.longitude, origin.latitude])
-            .addTo(map);
-        }
+        syncOriginMarker();
         observer = new ResizeObserver(() => {
           map?.resize();
           if (route) fitDemonstration();
@@ -179,7 +206,10 @@ export function PharmacyDetailMap({
       cancelled = true;
       observer?.disconnect();
       marker?.remove();
-      originMarker?.remove();
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
+      mapRef.current = null;
+      createOriginMarkerRef.current = null;
       demonstrationOriginMarker?.remove();
       map?.remove();
     };
@@ -188,8 +218,8 @@ export function PharmacyDetailMap({
     coordinates.longitude,
     interactive,
     name,
-    origin,
     route,
+    syncOriginMarker,
   ]);
 
   return (

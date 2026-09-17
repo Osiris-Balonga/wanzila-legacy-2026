@@ -23,10 +23,14 @@ export function PublicShell({ pathname }: PublicShellProps) {
   const routePreviewId = /^\/pharmacies\/([^/]+)\/itineraire\/?$/.exec(
     pathname,
   )?.[1];
+  const arrivalNavigationId = /^\/pharmacies\/([^/]+)\/navigation\/?$/.exec(
+    pathname,
+  )?.[1];
+  const navigationSurfaceId = routePreviewId ?? arrivalNavigationId;
   return (
     <div
       className={
-        routePreviewId
+        navigationSurfaceId
           ? "public-shell public-shell--route-preview"
           : pathname === "/enregistrees"
             ? "public-shell public-shell--saved"
@@ -57,8 +61,8 @@ export function PublicShell({ pathname }: PublicShellProps) {
         <DiscoveryRoute />
       ) : pathname === "/enregistrees" ? (
         <SavedPharmaciesPage />
-      ) : routePreviewId ? (
-        <RoutePreviewRoute id={routePreviewId} />
+      ) : navigationSurfaceId ? (
+        <RoutePreviewRoute id={navigationSurfaceId} />
       ) : pharmacyDetailId ? (
         <PharmacyDetailRoute id={pharmacyDetailId} />
       ) : (
