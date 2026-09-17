@@ -23,7 +23,11 @@ async function mockOverview(page: Page) {
   await page.route("**/api/v1/admin/analytics/overview**", async (route) => {
     const url = new URL(route.request().url());
     requests.push(url.searchParams.get("window") ?? "");
-    await route.fulfill({ json: qualityOverviewFixture() });
+    await route.fulfill({
+      json: qualityOverviewFixture(
+        url.searchParams.get("window") === "30d" ? "30d" : "7d",
+      ),
+    });
   });
   return requests;
 }
@@ -121,8 +125,13 @@ test("source rows show observedAt, reliability, freshness and actual duty counts
   await expect(sources).toContainText(/5 à jour/i);
   await expect(sources).toContainText(/2 en retard/i);
   await expect(sources).toContainText(/10 périodes sans source/i);
+  await expect(sources).toContainText(/20 périodes avec source/i);
+  await expect(sources).toContainText(
+    /30 périodes de garde en cours après exceptions/i,
+  );
   await expect(sources).toContainText(/instantané|au 16 septembre/i);
-  await expect(sources).not.toContainText(/fréquence|dernière mise à jour/i);
+  await expect(sources).toContainText(/pas fréquence de synchronisation/i);
+  await expect(sources).not.toContainText(/dernière mise à jour/i);
   await expect(sources.getByRole("link")).toHaveCount(0);
   await expect(
     sources.getByRole("button", { name: /modifier|ajouter|supprimer/i }),
@@ -141,6 +150,16 @@ test("coverage lists real arrondissement ratios and global unique-pharmacy total
   await expect(coverage).toContainText(/Bacongo/);
   await expect(coverage).toContainText(/7 sur 10/);
   await expect(coverage).toContainText(/70\s*%/);
+  const bacongoBar = coverage
+    .getByRole("listitem")
+    .filter({ hasText: "Bacongo" })
+    .locator(".analytics-detail-coverage__track span");
+  const fillRatio = await bacongoBar.evaluate((element) => {
+    const fill = element.getBoundingClientRect();
+    const track = element.parentElement!.getBoundingClientRect();
+    return fill.width / track.width;
+  });
+  expect(fillRatio).toBeCloseTo(0.7, 2);
   await expect(coverage).not.toContainText(/périodes approuvées en cours.*46/i);
   await expect(coverage).not.toContainText(/heatmap|anomalie détectée/i);
 });
@@ -196,7 +215,9 @@ test("changing 7d to 30d changes activity, not the asOf source and coverage snap
   ).toContainText("46 pharmacies publiées");
   expect(detailRequests).toHaveLength(1);
   await expect(
-    page.getByText(/instantané.*indépendant de la période d’activité/i),
+    page
+      .getByRole("region", { name: "Sources de planning" })
+      .getByText(/instantané.*indépendantes de la période d’activité/i),
   ).toBeVisible();
 });
 
@@ -268,6 +289,31 @@ test("an invalid #61 payload is rejected by Zod and remains retryable", async ({
   await expect(sources).not.toContainText("Ordre national des pharmaciens");
 });
 
+test("detail retry refetches and recovers without reloading the overview", async ({
+  page,
+}) => {
+  const overviewRequests = await mockOverview(page);
+  let attempts = 0;
+  await page.route("**/api/v1/admin/analytics/quality**", async (route) => {
+    attempts += 1;
+    await route.fulfill(
+      attempts === 1
+        ? {
+            status: 500,
+            json: { error: { code: "INTERNAL_ERROR", message: "test" } },
+          }
+        : { json: qualityDetailFixture() },
+    );
+  });
+  await page.goto("/admin/qualite");
+  const sources = page.getByRole("region", { name: "Sources de planning" });
+  await expect(sources.getByRole("alert")).toContainText(/indisponible/i);
+  await sources.getByRole("button", { name: "Réessayer" }).click();
+  await expect(sources).toContainText("Ordre national des pharmaciens");
+  expect(attempts).toBe(2);
+  expect(overviewRequests).toEqual(["7d"]);
+});
+
 for (const width of [320, 390, 768, 1440]) {
   test(`quality details remain usable without document overflow at ${width}px`, async ({
     page,
@@ -291,6 +337,20 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(
       sources.getByRole("button", { name: /page suivante/i }),
     ).toBeFocused();
+    if (width <= 390) {
+      const scroll = sources.getByRole("region", {
+        name: "Défilement horizontal du tableau des sources",
+      });
+      await scroll.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollLeft))
+        .toBeGreaterThan(0);
+    }
+    await page.evaluate(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+      window.scrollTo(0, 0);
+    });
     await page.evaluate(async () => document.fonts.ready);
     const path = testInfo.outputPath(
       "visual-evidence",

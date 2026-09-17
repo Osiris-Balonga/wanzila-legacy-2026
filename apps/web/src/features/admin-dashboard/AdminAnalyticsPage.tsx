@@ -13,6 +13,10 @@ import { useState, type ComponentType, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdminActivityMap } from "./AdminActivityMap";
+import {
+  AdminQualityDetailPanels,
+  useAdminQualityDetail,
+} from "./AdminQualityDetailPanels";
 import "./admin-analytics.css";
 
 type Overview = AdminAnalyticsOverviewResponse["data"];
@@ -622,66 +626,6 @@ function QualityMetrics({ overview }: { overview: Overview }) {
   );
 }
 
-function SourceHealth({ overview }: { overview: Overview }) {
-  const { registeredSources } = overview.quality;
-  return (
-    <section aria-label="Sources de planning" className="analytics-panel">
-      <div className="analytics-panel__heading">
-        <div>
-          <h2>Sources de planning</h2>
-          <p>Fraîcheur des sources enregistrées.</p>
-        </div>
-      </div>
-      <div className="analytics-source-counts">
-        <div>
-          <CheckCircleIcon aria-hidden="true" weight="fill" />
-          <strong>{count(registeredSources.fresh)}</strong>
-          <span>Sources à jour</span>
-        </div>
-        <div>
-          <WarningCircleIcon aria-hidden="true" weight="fill" />
-          <strong>{count(registeredSources.stale)}</strong>
-          <span>Sources en retard</span>
-        </div>
-      </div>
-      <p className="analytics-unavailable">
-        Détail des sources indisponible : aucun nom, horodatage ou rythme de
-        mise à jour dans ce rapport.
-      </p>
-    </section>
-  );
-}
-
-function DutyCoverage({ overview }: { overview: Overview }) {
-  const { quality } = overview;
-  const rows = [
-    ["Périodes approuvées en cours", quality.currentApprovedDutyPeriods],
-    ["Écartées par exceptions", quality.currentDutyPeriodsExcludedByExceptions],
-    ["Périodes après exceptions", quality.currentDutyPeriodsAfterExceptions],
-  ] as const;
-  return (
-    <section aria-label="Couverture des gardes" className="analytics-panel">
-      <div className="analytics-panel__heading">
-        <div>
-          <h2>Couverture des gardes</h2>
-          <p>Périodes de garde, pas pharmacies uniques.</p>
-        </div>
-      </div>
-      <dl className="analytics-coverage">
-        {rows.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{count(value)}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="analytics-unavailable">
-        Couverture par arrondissement indisponible dans ce rapport.
-      </p>
-    </section>
-  );
-}
-
 function FreshnessBreakdown({ overview }: { overview: Overview }) {
   const freshness = overview.quality.currentDutySourceFreshness;
   const total = freshness.fresh + freshness.stale + freshness.unknown;
@@ -779,6 +723,9 @@ export function AdminDataQualityPage({
   onRetry,
   retrying = false,
 }: AnalyticsPageProps) {
+  const detail = useAdminQualityDetail(
+    state.status === "success" || state.status === "empty",
+  );
   return (
     <div className="admin-analytics">
       <AnalyticsHeader
@@ -788,7 +735,7 @@ export function AdminDataQualityPage({
         window={window}
       />
       <AnalyticsBody
-        emptyMessage="Aucune donnée de qualité ou source enregistrée pour cette période."
+        emptyMessage="Aucune activité sur cette période ; les détails de qualité ci-dessous sont des instantanés."
         onRetry={onRetry}
         retrying={retrying}
         state={state}
@@ -797,8 +744,7 @@ export function AdminDataQualityPage({
           <>
             <QualityMetrics overview={state.overview} />
             <div className="analytics-grid analytics-grid--quality-top">
-              <SourceHealth overview={state.overview} />
-              <DutyCoverage overview={state.overview} />
+              <AdminQualityDetailPanels controller={detail} />
             </div>
             <div className="analytics-grid analytics-grid--quality-bottom">
               <FreshnessBreakdown overview={state.overview} />

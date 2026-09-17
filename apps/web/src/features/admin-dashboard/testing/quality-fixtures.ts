@@ -113,8 +113,10 @@ const coverageRows: Coverage[] = [
   },
 ];
 
-export function qualityOverviewFixture(): AdminAnalyticsOverviewResponse {
-  const overview = analyticsOverviewFixture();
+export function qualityOverviewFixture(
+  window: "7d" | "30d" = "7d",
+): AdminAnalyticsOverviewResponse {
+  const overview = analyticsOverviewFixture(window);
   overview.data.quality.registeredSources = { fresh: 5, stale: 2 };
   overview.data.quality.publishedPharmacies = 46;
   overview.data.quality.currentApprovedDutyPeriods = 31;
