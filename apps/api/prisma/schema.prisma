@@ -47,6 +47,8 @@ model AdminUser {
   sessions               AdminSession[]
   submittedDutyRevisions DutyRevision[] @relation("DutyRevisionSubmitter")
   reviewedDutyRevisions  DutyRevision[] @relation("DutyRevisionReviewer")
+  contributionCorrections ContributionCorrection[]
+  reviewedContributions Contribution[] @relation("ContributionReviewer")
 }
 
 model AdminSession {
@@ -80,6 +82,7 @@ model Pharmacy {
   status           PublicationStatus @default(DRAFT)
   createdAt        DateTime          @default(now()) @db.DateTime(3)
   updatedAt        DateTime          @updatedAt @db.DateTime(3)
+  matchKey         String?           @unique @db.Char(64)
   duties           DutyPeriod[]
   contributions    Contribution[]
   reports          Report[]
@@ -167,15 +170,40 @@ model Contribution {
   address        String       @db.VarChar(255)
   district       String       @db.VarChar(120)
   arrondissement String       @db.VarChar(120)
-  latitude       Decimal      @db.Decimal(10, 7)
-  longitude      Decimal      @db.Decimal(10, 7)
+  latitude       Decimal?     @db.Decimal(10, 7)
+  longitude      Decimal?     @db.Decimal(10, 7)
   note           String?      @db.Text
+  submissionId   String?      @unique @db.Char(36)
+  original       Json?
+  version        Int          @default(0) @db.UnsignedInt
+  reviewNote     String?      @db.VarChar(500)
+  notePurgedAt   DateTime?    @db.DateTime(3)
+  reviewedById   String?      @db.Char(36)
+  reviewedByName String?      @db.VarChar(120)
   status         ReviewStatus @default(PENDING)
   createdAt      DateTime     @default(now()) @db.DateTime(3)
   reviewedAt     DateTime?    @db.DateTime(3)
   pharmacy       Pharmacy?    @relation(fields: [pharmacyId], references: [id], onDelete: SetNull)
+  reviewedBy     AdminUser?   @relation("ContributionReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  corrections    ContributionCorrection[]
 
   @@index([status, createdAt])
+}
+
+model ContributionCorrection {
+  id             String       @id @default(uuid()) @db.Char(36)
+  contributionId String       @db.Char(36)
+  version        Int          @db.UnsignedInt
+  before         Json
+  after          Json
+  reason         String       @db.VarChar(500)
+  correctedById  String       @db.Char(36)
+  correctedByName String      @db.VarChar(120)
+  createdAt      DateTime     @default(now()) @db.DateTime(3)
+  contribution   Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  correctedBy    AdminUser    @relation(fields: [correctedById], references: [id], onDelete: Restrict)
+
+  @@unique([contributionId, version])
 }
 
 model Report {
