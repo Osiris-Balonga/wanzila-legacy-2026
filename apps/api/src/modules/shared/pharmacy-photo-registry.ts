@@ -23,7 +23,7 @@ export function approvedPhoto(
       item.source === photo.source &&
       item.credit === photo.credit &&
       item.rights === photo.rights &&
-      item.verifiedAt === photo.verifiedAt,
+      Date.parse(item.verifiedAt) === Date.parse(photo.verifiedAt),
   );
 }
 
