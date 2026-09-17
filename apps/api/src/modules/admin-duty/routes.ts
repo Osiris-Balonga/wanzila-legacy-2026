@@ -5,6 +5,7 @@ import {
 } from "../admin-auth/authorization.js";
 import { registerAdminDutyPeriodRoutes } from "./duty-routes.js";
 import { registerAdminDutyExceptionRoutes } from "./exception-routes.js";
+import { registerAdminDutyRevisionRoutes } from "./revision-routes.js";
 import { registerAdminSourceRoutes } from "./source-routes.js";
 import type { AdminDutyRouteOptions } from "./shared.js";
 
@@ -28,6 +29,12 @@ export function registerAdminDutyRoutes(
     mutationGuards,
   );
   registerAdminDutyExceptionRoutes(
+    app,
+    options,
+    requireAdministrator,
+    mutationGuards,
+  );
+  registerAdminDutyRevisionRoutes(
     app,
     options,
     requireAdministrator,

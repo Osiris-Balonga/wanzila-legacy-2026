@@ -15,7 +15,7 @@ import {
   type DutyPeriodInput,
 } from "@wanzila/domain";
 import type { FastifyInstance } from "fastify";
-import type { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client.js";
 import type { ApiPrismaClient } from "../../infrastructure/prisma.js";
 import { sendBadRequest, sendNotFound } from "../shared/http-errors.js";
 
@@ -171,16 +171,19 @@ export function registerPublicPharmacyRoutes(
       }
 
       const start = (query.data.page - 1) * query.data.pageSize;
-      const [pharmacies, total] = await Promise.all([
-        options.prisma.pharmacy.findMany({
-          where,
-          orderBy: [{ name: "asc" }, { id: "asc" }],
-          skip: start,
-          take: query.data.pageSize,
-          select: pharmacySelect,
-        }),
-        options.prisma.pharmacy.count({ where }),
-      ]);
+      const [pharmacies, total] = await options.prisma.$transaction(
+        [
+          options.prisma.pharmacy.findMany({
+            where,
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            skip: start,
+            take: query.data.pageSize,
+            select: pharmacySelect,
+          }),
+          options.prisma.pharmacy.count({ where }),
+        ],
+        { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+      );
       const activePharmacies: ActivePublicPharmacy[] = pharmacies.flatMap(
         (pharmacy) => {
           const serialized = serializePharmacy(

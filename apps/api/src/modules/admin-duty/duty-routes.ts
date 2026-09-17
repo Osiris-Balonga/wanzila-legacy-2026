@@ -83,20 +83,37 @@ export function registerAdminDutyPeriodRoutes(
           : {}),
         ...(query.data.to ? { startsAt: { lt: new Date(query.data.to) } } : {}),
       };
-      const [records, total] = await Promise.all([
-        options.prisma.dutyPeriod.findMany({
-          where,
-          orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-          skip: (query.data.page - 1) * query.data.pageSize,
-          take: query.data.pageSize,
-          select: dutySelect,
-        }),
-        options.prisma.dutyPeriod.count({ where }),
-      ]);
+      const [records, total] = await options.prisma.$transaction(
+        [
+          options.prisma.dutyPeriod.findMany({
+            where,
+            orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+            skip: (query.data.page - 1) * query.data.pageSize,
+            take: query.data.pageSize,
+            select: dutySelect,
+          }),
+          options.prisma.dutyPeriod.count({ where }),
+        ],
+        { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+      );
       return {
         data: records.map(serialize),
         pagination: pagination(query.data.page, query.data.pageSize, total),
       };
+    },
+  );
+
+  app.get(
+    "/admin/duties/:id",
+    { preHandler: requireAdministrator },
+    async (request, reply) => {
+      const params = adminDutyPathParamsSchema.safeParse(request.params);
+      if (!params.success) return sendBadRequest(reply);
+      const duty = await options.prisma.dutyPeriod.findUnique({
+        where: { id: params.data.id },
+        select: dutySelect,
+      });
+      return duty ? { data: serialize(duty) } : sendNotFound(reply);
     },
   );
 
