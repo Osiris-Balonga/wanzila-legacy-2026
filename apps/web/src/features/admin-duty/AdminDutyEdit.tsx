@@ -23,12 +23,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   DutyHttpError,
   isDutyAuthError,
+  listPharmacies,
   listSources,
   loadDuty,
   loadDutyPharmacy,
   loadDutyRevisions,
   reviewDutyRevision,
   submitDutyRevision,
+  updatePendingDuty,
 } from "./admin-duty-client";
 import {
   dateLabel,
@@ -46,13 +48,14 @@ type Ready = {
   kind: "ready";
   duty: AdminDuty;
   pharmacy: AdminPharmacy;
+  pharmacies: AdminPharmacy[];
   sources: AdminScheduleSource[];
-  revisions: RevisionPage;
+  revisions: RevisionPage | null;
 };
 type PageState =
   | { kind: "loading" }
   | Ready
-  | { kind: "pending" | "rejected" }
+  | { kind: "rejected" }
   | { kind: "auth" | "forbidden" | "not-found" | "malformed" | "error" };
 
 function pageFailure(error: unknown): PageState {
@@ -76,6 +79,10 @@ export function AdminDutyEdit({ id }: { id: string }) {
     endTime: "",
   });
   const [sourceId, setSourceId] = useState("");
+  const [pharmacyId, setPharmacyId] = useState("");
+  const [pharmacySearch, setPharmacySearch] = useState("");
+  const [pharmacySearchError, setPharmacySearchError] = useState("");
+  const [pharmacySearchBusy, setPharmacySearchBusy] = useState(false);
   const [note, setNote] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [pendingRevision, setPendingRevision] =
@@ -97,25 +104,38 @@ export function AdminDutyEdit({ id }: { id: string }) {
     void loadDuty(id)
       .then(async (duty) => {
         if (cancelled) return;
-        if (duty.status === "PENDING") {
-          setState({ kind: "pending" });
-          return;
-        }
         if (duty.status === "REJECTED") {
           setState({ kind: "rejected" });
           return;
         }
-        const [pharmacy, sources, revisions] = await Promise.all([
-          loadDutyPharmacy(duty.pharmacyId),
-          listSources(),
-          loadDutyRevisions(id, 1),
-        ]);
+        const [pharmacy, sources, revisions, pharmacyOptions] =
+          await Promise.all([
+            loadDutyPharmacy(duty.pharmacyId),
+            listSources(),
+            duty.status === "APPROVED"
+              ? loadDutyRevisions(id, 1)
+              : Promise.resolve(null),
+            duty.status === "PENDING" ? listPharmacies() : Promise.resolve([]),
+          ]);
         if (cancelled) return;
-        setState({ kind: "ready", duty, pharmacy, sources, revisions });
+        setState({
+          kind: "ready",
+          duty,
+          pharmacy,
+          pharmacies: [
+            pharmacy,
+            ...pharmacyOptions.filter((item) => item.id !== pharmacy.id),
+          ],
+          sources,
+          revisions,
+        });
         setFields(initialFields(duty));
+        setPharmacyId(duty.pharmacyId);
+        setPharmacySearch("");
+        setPharmacySearchError("");
         setSourceId(duty.sourceId ?? "");
         setPendingRevision(
-          revisions.data.find((revision) => revision.status === "PENDING") ??
+          revisions?.data.find((revision) => revision.status === "PENDING") ??
             null,
         );
       })
@@ -140,6 +160,39 @@ export function AdminDutyEdit({ id }: { id: string }) {
     setReloadKey((value) => value + 1);
   }
 
+  async function searchPharmacies() {
+    if (
+      state.kind !== "ready" ||
+      state.duty.status !== "PENDING" ||
+      pharmacySearchBusy
+    )
+      return;
+    setPharmacySearchBusy(true);
+    setPharmacySearchError("");
+    try {
+      const matches = await listPharmacies(pharmacySearch);
+      setState((current) => {
+        if (current.kind !== "ready") return current;
+        const selected = current.pharmacies.find(
+          (item) => item.id === pharmacyId,
+        );
+        return {
+          ...current,
+          pharmacies:
+            selected && !matches.some((item) => item.id === selected.id)
+              ? [selected, ...matches]
+              : matches,
+        };
+      });
+    } catch (failure) {
+      if (isDutyAuthError(failure)) setState({ kind: "auth" });
+      else
+        setPharmacySearchError("La recherche de pharmacies est indisponible.");
+    } finally {
+      setPharmacySearchBusy(false);
+    }
+  }
+
   function openReview(target: ReviewTarget, trigger: HTMLButtonElement) {
     reviewTriggerRef.current = trigger;
     setReviewError("");
@@ -153,7 +206,7 @@ export function AdminDutyEdit({ id }: { id: string }) {
   }
 
   async function changeHistoryPage(page: number) {
-    if (state.kind !== "ready" || historyBusy) return;
+    if (state.kind !== "ready" || !state.revisions || historyBusy) return;
     setHistoryBusy(true);
     try {
       const result = await loadDutyRevisions(id, page);
@@ -183,6 +236,41 @@ export function AdminDutyEdit({ id }: { id: string }) {
       setError(
         "La fin doit être après le début. Vérifiez les dates et heures.",
       );
+      return;
+    }
+    if (state.duty.status === "PENDING") {
+      submissionLocked.current = true;
+      setSaving(true);
+      try {
+        const updated = await updatePendingDuty(id, {
+          pharmacyId,
+          sourceId: sourceId || null,
+          startsAt,
+          endsAt,
+        });
+        if (updated.status !== "PENDING")
+          throw new Error("Unexpected duty status");
+        setFeedback(
+          "Modifications enregistrées. Cette garde reste en attente d’approbation et n’est pas encore publiée.",
+        );
+        refresh();
+      } catch (failure) {
+        if (isDutyAuthError(failure)) setState({ kind: "auth" });
+        else if (failure instanceof DutyHttpError && failure.status === 403)
+          setState({ kind: "forbidden" });
+        else if (failure instanceof DutyHttpError && failure.status === 409) {
+          setFeedback(
+            "L’état de la garde a changé. Les données ont été rechargées depuis le serveur.",
+          );
+          refresh();
+        } else
+          setError(
+            "La garde n’a pas pu être enregistrée. Vérifiez les données et réessayez.",
+          );
+      } finally {
+        submissionLocked.current = false;
+        setSaving(false);
+      }
       return;
     }
     if (!note.trim()) {
@@ -273,6 +361,8 @@ export function AdminDutyEdit({ id }: { id: string }) {
   }
 
   const ready = state.kind === "ready" ? state : null;
+  const selectedPharmacy =
+    ready?.pharmacies.find((item) => item.id === pharmacyId) ?? ready?.pharmacy;
   return (
     <div className="admin-duty admin-duty-edit">
       <a className="admin-duty__back" href="/admin/gardes">
@@ -282,15 +372,21 @@ export function AdminDutyEdit({ id }: { id: string }) {
       <header className="admin-duty__heading admin-duty-edit__heading">
         <div>
           <h1>Modifier une garde</h1>
-          <p>Proposez une modification traçable du planning de garde.</p>
+          <p>
+            {ready?.duty.status === "PENDING"
+              ? "Corrigez le planning avant sa revue."
+              : "Proposez une modification traçable du planning de garde."}
+          </p>
         </div>
         {ready ? (
           <div className="admin-duty-edit__published">
             <Badge
-              className="admin-duty-edit__published-badge"
+              className={`admin-duty-edit__published-badge${ready.duty.status === "PENDING" ? " admin-duty-edit__pending-badge" : ""}`}
               variant="secondary"
             >
-              Garde publiée
+              {ready.duty.status === "PENDING"
+                ? "Garde en attente"
+                : "Garde publiée"}
             </Badge>
             <span>Créée le {dateLabel(ready.duty.createdAt)}</span>
           </div>
@@ -308,11 +404,9 @@ export function AdminDutyEdit({ id }: { id: string }) {
         </div>
       ) : null}
       {state.kind === "auth" ? <DutyAuthNotice /> : null}
-      {state.kind === "pending" || state.kind === "rejected" ? (
+      {state.kind === "rejected" ? (
         <Alert role="note">
-          <AlertTitle>
-            {state.kind === "pending" ? "Garde en attente" : "Garde rejetée"}
-          </AlertTitle>
+          <AlertTitle>Garde rejetée</AlertTitle>
           <AlertDescription>
             L’édition de cette garde est indisponible dans cet écran. Retournez
             à la liste des gardes.
@@ -356,16 +450,25 @@ export function AdminDutyEdit({ id }: { id: string }) {
             error={error}
             feedback={feedback}
             fields={fields}
+            mode={ready.duty.status === "PENDING" ? "pending" : "approved"}
+            pharmacies={ready.pharmacies}
+            pharmacyId={pharmacyId}
+            pharmacySearch={pharmacySearch}
+            pharmacySearchBusy={pharmacySearchBusy}
+            pharmacySearchError={pharmacySearchError}
             note={note}
             onFieldsChange={(update) =>
               setFields((current) => ({ ...current, ...update }))
             }
             onNoteChange={setNote}
+            onPharmacyChange={setPharmacyId}
+            onPharmacySearchChange={setPharmacySearch}
+            onSearchPharmacies={() => void searchPharmacies()}
             onRefresh={refresh}
             onSourceChange={setSourceId}
             onSubmit={(event) => void submit(event)}
             pendingRevision={Boolean(pendingRevision)}
-            pharmacy={ready.pharmacy}
+            pharmacy={selectedPharmacy ?? ready.pharmacy}
             saving={saving}
             sourceId={sourceId}
             sources={ready.sources}
@@ -376,7 +479,7 @@ export function AdminDutyEdit({ id }: { id: string }) {
             historyBusy={historyBusy}
             onHistoryPage={(page) => void changeHistoryPage(page)}
             onReview={openReview}
-            pharmacy={ready.pharmacy}
+            pharmacy={selectedPharmacy ?? ready.pharmacy}
             revisions={ready.revisions}
             sources={ready.sources}
           />

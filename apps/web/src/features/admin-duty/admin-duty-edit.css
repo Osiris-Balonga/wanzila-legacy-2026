@@ -31,6 +31,11 @@
   padding-inline: 0.7rem;
 }
 
+.admin-duty-edit__pending-badge {
+  background: var(--primary-soft);
+  color: #4a20ac;
+}
+
 .admin-duty-edit__grid {
   align-items: start;
   display: grid;
@@ -62,6 +67,27 @@
   min-height: 4.2rem;
   min-width: 0;
   padding: 0.6rem 0.8rem;
+}
+
+.admin-duty-edit__pharmacy-search {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-duty-edit__pharmacy-search [data-slot="input"] {
+  min-width: 0;
+}
+
+.admin-duty-edit__pharmacy-search [data-slot="button"] {
+  flex: none;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+.admin-duty-edit__status-static.admin-duty-edit__status-static--pending {
+  background: var(--primary-soft);
+  color: #4a20ac;
 }
 
 .admin-duty-edit__pharmacy-static svg {

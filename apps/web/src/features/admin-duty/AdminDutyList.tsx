@@ -270,7 +270,7 @@ function DutyRows({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {duty.status === "APPROVED" ? (
+                      {duty.status !== "REJECTED" ? (
                         <DropdownMenuItem asChild>
                           <a href={`/admin/gardes/${duty.id}/modifier`}>
                             Modifier

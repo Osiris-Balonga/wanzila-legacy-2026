@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const dutyId = "00000000-0000-4000-8000-000000007301";
 const pharmacyId = "00000000-0000-4000-8000-000000007302";
+const otherPharmacyId = "00000000-0000-4000-8000-000000007308";
 const sourceId = "00000000-0000-4000-8000-000000007303";
 const nextSourceId = "00000000-0000-4000-8000-000000007304";
 const revisionId = "00000000-0000-4000-8000-000000007305";
@@ -36,6 +37,16 @@ const pharmacy = {
   status: "PUBLISHED",
   createdAt: "2026-09-01T08:00:00.000Z",
   updatedAt: "2026-09-01T08:00:00.000Z",
+};
+const otherPharmacy = {
+  ...pharmacy,
+  id: otherPharmacyId,
+  name: "Pharmacie du Centre",
+  address: {
+    line: "Rue du Centre",
+    district: "Poto-Poto",
+    arrondissement: "Poto-Poto",
+  },
 };
 
 const sources = [
@@ -143,6 +154,29 @@ async function mockEditApi(page: Page, options: MockOptions = {}) {
   await page.route(`**/api/v1/admin/pharmacies/${pharmacyId}`, (route) =>
     route.fulfill({ json: { data: pharmacy } }),
   );
+  await page.route(`**/api/v1/admin/pharmacies/${otherPharmacyId}`, (route) =>
+    route.fulfill({ json: { data: otherPharmacy } }),
+  );
+  await page.route("**/api/v1/admin/pharmacies?*", (route) => {
+    const name =
+      new URL(route.request().url()).searchParams
+        .get("name")
+        ?.toLocaleLowerCase("fr-CG") ?? "";
+    const data = [pharmacy, otherPharmacy].filter((item) =>
+      item.name.toLocaleLowerCase("fr-CG").includes(name),
+    );
+    return route.fulfill({
+      json: {
+        data,
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          total: data.length,
+          totalPages: data.length ? 1 : 0,
+        },
+      },
+    });
+  });
   await page.route("**/api/v1/admin/sources?*", (route) =>
     route.fulfill({
       json: {
@@ -193,7 +227,7 @@ test("the duty directory exposes Modifier in the row ellipse menu", async ({
   ).toBeVisible();
 });
 
-test("PENDING and REJECTED rows do not offer an editor in the ellipse", async ({
+test("PENDING rows offer the editor while REJECTED rows do not", async ({
   page,
 }) => {
   await mockEditApi(page);
@@ -226,7 +260,7 @@ test("PENDING and REJECTED rows do not offer an editor in the ellipse", async ({
       .getByRole("button", { name: `Actions pour ${pharmacy.name}` })
       .click();
     await expect(page.getByRole("menuitem", { name: /modifier/i })).toHaveCount(
-      0,
+      nextStatus === "PENDING" ? 1 : 0,
     );
     await expect(
       page.getByRole("menuitem", { name: "Voir la pharmacie" }),
@@ -352,16 +386,14 @@ test("history pages are loaded from the revision ledger, not a local slice", asy
   await expect(page.getByText(/Motif réel 1$/)).toHaveCount(0);
 });
 
-test("a PENDING duty gets an honest non-editor state with a way back", async ({
-  page,
-}) => {
+test("a PENDING duty has an editor with a way back", async ({ page }) => {
   await mockEditApi(page, {
     dutyBody: { data: { ...canonical, status: "PENDING" } },
   });
   await page.goto(editUrl);
-  await expect(page.getByText(/garde en attente/i)).toBeVisible();
+  await expect(page.getByText(/garde en attente/i).first()).toBeVisible();
   await expect(
-    page.getByText(/édition.*indisponible|ne peut pas.*modifier/i),
+    page.getByRole("button", { name: "Enregistrer les modifications" }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Retour aux gardes" }),
@@ -766,4 +798,191 @@ test("visual evidence for populated and legacy edit states", async ({
       });
     }
   }
+});
+
+test("PENDING editor saves through PATCH without creating a revision or claiming publication", async ({
+  page,
+}) => {
+  let pending = { ...canonical, status: "PENDING" };
+  let submitted: Record<string, unknown> | null = null;
+  let revisionRequests = 0;
+  await mockEditApi(page, { dutyBody: { data: pending } });
+  await page.route(`**${revisionsPath}*`, (route) => {
+    revisionRequests += 1;
+    return route.abort();
+  });
+  await page.route(`**${dutyPath}`, async (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { data: pending } });
+    if (route.request().method() !== "PATCH") return route.fallback();
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    pending = { ...pending, ...submitted };
+    return route.fulfill({ json: { data: pending } });
+  });
+  await page.goto(editUrl);
+  await expect(
+    page.getByText("Garde en attente", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Historique des modifications" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/visible publiquement qu’après approbation/i),
+  ).toBeVisible();
+  await page.locator("#duty-edit-start-date").fill("2026-09-19");
+  await page.locator("#duty-edit-end-date").fill("2026-09-20");
+  await page
+    .getByRole("searchbox", { name: "Rechercher dans les pharmacies" })
+    .fill("Centre");
+  await page.getByRole("button", { name: "Chercher une pharmacie" }).click();
+  await page.getByRole("combobox", { name: "Pharmacie" }).click();
+  await page.getByRole("option", { name: otherPharmacy.name }).click();
+  const save = page.getByRole("button", {
+    name: "Enregistrer les modifications",
+  });
+  await save.focus();
+  await expect(save).toBeFocused();
+  await save.click();
+  await expect(
+    page.locator(".admin-duty__success[role='status']"),
+  ).toContainText(/reste en attente d.approbation/i);
+  expect(submitted).toMatchObject({
+    pharmacyId: otherPharmacyId,
+    sourceId,
+    startsAt: "2026-09-19T17:00:00.000Z",
+    endsAt: "2026-09-20T07:00:00.000Z",
+  });
+  expect(revisionRequests).toBe(0);
+  await expect(page.getByText("Garde publiée", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Pharmacie", exact: true }),
+  ).toContainText(otherPharmacy.name);
+});
+
+test("PENDING editor validates interval before PATCH and reloads a stale published status after 409", async ({
+  page,
+}) => {
+  let status: "PENDING" | "APPROVED" = "PENDING";
+  let patchCount = 0;
+  await mockEditApi(page);
+  await page.route(`**${dutyPath}`, async (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { data: { ...canonical, status } } });
+    if (route.request().method() === "PATCH") {
+      patchCount += 1;
+      status = "APPROVED";
+      return route.fulfill({
+        status: 409,
+        json: { error: { code: "CONFLICT", message: "Changed" } },
+      });
+    }
+    return route.continue();
+  });
+  await page.goto(editUrl);
+  await page.locator("#duty-edit-end-date").fill("2026-09-17");
+  await page
+    .getByRole("button", { name: "Enregistrer les modifications" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    /fin doit être après le début/i,
+  );
+  expect(patchCount).toBe(0);
+  await page.locator("#duty-edit-end-date").fill("2026-09-18");
+  await page
+    .getByRole("button", { name: "Enregistrer les modifications" })
+    .click();
+  await expect(page.getByText("Garde publiée", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".admin-duty__success[role='status']"),
+  ).toContainText(/rechargées depuis le serveur/i);
+  expect(patchCount).toBe(1);
+});
+
+test("PENDING editor has form and pharmacy regions without page overflow", async ({
+  page,
+}) => {
+  await mockEditApi(page, {
+    dutyBody: { data: { ...canonical, status: "PENDING" } },
+  });
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(editUrl);
+    await expect(
+      page.getByRole("region", { name: "Informations de la garde" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Pharmacie", exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
+test("PENDING PATCH distinguishes expired authentication and forbidden access", async ({
+  page,
+}) => {
+  await mockEditApi(page, {
+    dutyBody: { data: { ...canonical, status: "PENDING" } },
+  });
+  let responseStatus = 401;
+  await page.route(`**${dutyPath}`, (route) => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    return route.fulfill({
+      status: responseStatus,
+      json: {
+        error: {
+          code:
+            responseStatus === 401 ? "AUTHENTICATION_REQUIRED" : "FORBIDDEN",
+          message: "Denied",
+        },
+      },
+    });
+  });
+  await page.goto(editUrl);
+  await page
+    .getByRole("button", { name: "Enregistrer les modifications" })
+    .click();
+  await expect(page.getByRole("link", { name: /se connecter/i })).toBeVisible();
+  await expect(page.getByText(/modifications enregistrées/i)).toHaveCount(0);
+  responseStatus = 403;
+  await page.goto(editUrl);
+  await page
+    .getByRole("button", { name: "Enregistrer les modifications" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(/accès refusé/i);
+  await expect(page.getByText(/modifications enregistrées/i)).toHaveCount(0);
+});
+
+test("PENDING editor representative desktop capture", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !process.env.WANZILA_DUTY_PENDING_CAPTURE ||
+      testInfo.project.name !== "desktop",
+    "Manual visual evidence only",
+  );
+  await mockEditApi(page, {
+    dutyBody: { data: { ...canonical, status: "PENDING" } },
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(editUrl);
+  await expect(
+    page.getByRole("button", { name: "Enregistrer les modifications" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", {
+      name: `Carte de localisation de ${pharmacy.name}`,
+    }),
+  ).toHaveAttribute("data-map-status", "ready", { timeout: 20_000 });
+  await page.screenshot({
+    path: resolve(
+      process.cwd(),
+      "docs/design/evidence/issue-75/pending-duty-edit-1440.png",
+    ),
+    animations: "disabled",
+    fullPage: true,
+  });
 });

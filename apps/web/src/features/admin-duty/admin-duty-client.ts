@@ -9,6 +9,7 @@ import {
   adminScheduleSourceListResponseSchema,
   createAdminDutyRequestSchema,
   createAdminDutyRevisionRequestSchema,
+  updateAdminDutyRequestSchema,
   type AdminDuty,
   type AdminDutyRevision,
   type AdminPharmacy,
@@ -169,6 +170,23 @@ export async function createDuty(input: {
 export async function loadDuty(id: string): Promise<AdminDuty> {
   return adminDutyResponseSchema.parse(await request(`/admin/duties/${id}`))
     .data;
+}
+
+export async function updatePendingDuty(
+  id: string,
+  input: {
+    pharmacyId: string;
+    sourceId: string | null;
+    startsAt: string;
+    endsAt: string;
+  },
+): Promise<AdminDuty> {
+  return adminDutyResponseSchema.parse(
+    await request(`/admin/duties/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(updateAdminDutyRequestSchema.parse(input)),
+    }),
+  ).data;
 }
 
 export async function loadDutyPharmacy(id: string): Promise<AdminPharmacy> {
