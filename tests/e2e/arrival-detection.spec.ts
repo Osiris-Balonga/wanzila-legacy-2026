@@ -79,6 +79,19 @@ async function witness(page: Page) {
   });
 }
 
+async function captureAnalytics(page: Page) {
+  const events: { name: string; properties: Record<string, unknown> }[] = [];
+  await page.route("**/api/v1/analytics/events", async (route) => {
+    const event = route.request().postDataJSON() as {
+      name: string;
+      properties: Record<string, unknown>;
+    };
+    events.push(event);
+    await route.fulfill({ status: 202, json: { data: {} } });
+  });
+  return events;
+}
+
 test.use({
   locale: "fr-FR",
   timezoneId: "Africa/Brazzaville",
@@ -129,6 +142,15 @@ test("explicit start, one arrival at 50 m, cleanup, no position storage or trans
   await expect(
     page.getByRole("heading", { name: /suivi d’arrivée en cours/i }),
   ).toBeVisible();
+  const canvas = page.locator(".maplibregl-canvas");
+  await canvas.evaluate((element) =>
+    element.setAttribute("data-arrival-instance", "unchanged"),
+  );
+  await emitPosition(page, -4.2656, 15.2429);
+  await expect(
+    page.locator(".arrival-controls__distance strong"),
+  ).not.toHaveText("111 m");
+  await expect(canvas).toHaveAttribute("data-arrival-instance", "unchanged");
   await emitPosition(page, -4.2636, 15.2429);
   await expect(
     page.getByRole("heading", { name: /arrivée à proximité/i }),
@@ -218,6 +240,71 @@ test("direct navigation route still requires explicit start, and unsupported is 
   ).toBeVisible();
 });
 
+test("analytics emits route_started on explicit click and arrival_confirmed once without coordinates", async ({
+  page,
+}) => {
+  await installLocationMock(page);
+  const events = await captureAnalytics(page);
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  expect(events).toEqual([]);
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await expect
+    .poll(() => events.filter((event) => event.name === "route_started").length)
+    .toBe(1);
+  await emitPosition(page, -4.2646, 15.2429);
+  expect(
+    events.filter((event) => event.name === "arrival_confirmed"),
+  ).toHaveLength(0);
+  await emitPosition(page, -4.2636, 15.2429);
+  await expect
+    .poll(
+      () => events.filter((event) => event.name === "arrival_confirmed").length,
+    )
+    .toBe(1);
+  await emitPosition(page, -4.2636, 15.2429);
+  expect(events.map((event) => event.name)).toEqual([
+    "route_started",
+    "arrival_confirmed",
+  ]);
+  for (const event of events) {
+    expect(event.properties).toEqual({ pharmacyId: id });
+    expect(JSON.stringify(event)).not.toContain("-4.2636");
+    expect(JSON.stringify(event)).not.toContain("15.2429");
+  }
+});
+
+test("denial, cancellation and acquisition failure never emit arrival analytics", async ({
+  page,
+}) => {
+  await installLocationMock(page);
+  const events = await captureAnalytics(page);
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await emitError(page, 1);
+  await page.getByRole("button", { name: "Réessayer le suivi" }).click();
+  await emitError(page, 2);
+  await page.getByRole("button", { name: "Réessayer le suivi" }).click();
+  await emitPosition(page, -4.2646, 15.2429);
+  await page.getByRole("button", { name: "Quitter le suivi" }).click();
+  await emitPosition(page, -4.2636, 15.2429);
+  await expect
+    .poll(() => events.filter((event) => event.name === "route_started").length)
+    .toBe(3);
+  expect(
+    events.filter((event) => event.name === "arrival_confirmed"),
+  ).toHaveLength(0);
+  expect(
+    events.every(
+      (event) =>
+        JSON.stringify(event.properties) === JSON.stringify({ pharmacyId: id }),
+    ),
+  ).toBe(true);
+});
+
 test("responsive live-map evidence for active, arrived, cancelled and error states", async ({
   page,
 }, testInfo) => {
@@ -250,12 +337,21 @@ test("responsive live-map evidence for active, arrived, cancelled and error stat
     });
   }
   await page.setViewportSize({ width: 390, height: 900 });
+  const quit = page.getByRole("button", { name: "Quitter le suivi" });
+  await quit.focus();
+  await expect(quit).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(
-    page.getByRole("link", { name: "Aller au contenu" }),
-  ).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: /retour/i })).toBeFocused();
+  const external = page.getByRole("link", {
+    name: /ouvrir l’itinéraire dans google maps/i,
+  });
+  await expect(external).toBeFocused();
+  expect(
+    await external.evaluate((element) => element.matches(":focus-visible")),
+  ).toBe(true);
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
   await emitPosition(page, -4.2636, 15.2429);
   await page.screenshot({
     path: process.env.WANZILA_ARRIVAL_CAPTURE_DIR

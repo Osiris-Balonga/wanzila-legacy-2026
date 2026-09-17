@@ -22,6 +22,7 @@ type TrackerModule = {
     radiusMeters?: number;
     onState: (state: State) => void;
     onPosition?: (position: Point | null) => void;
+    onArrival?: () => void;
   }) => Tracker;
 };
 
@@ -161,5 +162,29 @@ describe("explicit arrival watch lifecycle", () => {
     const stateCount = states.length;
     callbacks.success?.({ coords: destination });
     expect(states).toHaveLength(stateCount);
+  });
+
+  it("emits one arrival callback only after crossing a configurable radius", async () => {
+    const { createArrivalTracker } = await subject();
+    const { geo, callbacks } = createGeo();
+    const onArrival = vi.fn();
+    const tracker = createArrivalTracker({
+      geolocation: geo,
+      destination,
+      radiusMeters: 75,
+      onState: vi.fn(),
+      onArrival,
+    });
+    tracker.start();
+    callbacks.success?.({
+      coords: { latitude: -4.2646, longitude: 15.2429 },
+    });
+    expect(onArrival).not.toHaveBeenCalled();
+    callbacks.success?.({
+      coords: { latitude: -4.26415, longitude: 15.2429 },
+    });
+    callbacks.success?.({ coords: destination });
+    expect(onArrival).toHaveBeenCalledTimes(1);
+    tracker.dispose();
   });
 });
