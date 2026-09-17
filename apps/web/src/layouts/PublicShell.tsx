@@ -7,6 +7,7 @@ import { DiscoveryRoute } from "@/features/discovery/DiscoveryPage";
 import { EmergencyContactsRoute } from "../features/emergency-contacts/EmergencyContactsRoute";
 import { PharmacyDetailRoute } from "../features/pharmacy-detail/PharmacyDetailPage";
 import { RoutePreviewRoute } from "../features/navigation/RoutePreviewPage";
+import { SavedPharmaciesPage } from "../features/saved-pharmacies/SavedPharmaciesPage";
 
 type PublicShellProps = { pathname: string };
 const navigation: Array<{ href: string; icon: IconName; label: string }> = [
@@ -27,11 +28,13 @@ export function PublicShell({ pathname }: PublicShellProps) {
       className={
         routePreviewId
           ? "public-shell public-shell--route-preview"
-          : pathname === "/"
-            ? "public-shell public-shell--discovery"
-            : pharmacyDetailId
-              ? "public-shell public-shell--pharmacy-detail"
-              : "public-shell"
+          : pathname === "/enregistrees"
+            ? "public-shell public-shell--saved"
+            : pathname === "/"
+              ? "public-shell public-shell--discovery"
+              : pharmacyDetailId
+                ? "public-shell public-shell--pharmacy-detail"
+                : "public-shell"
       }
       data-shell="public"
     >
@@ -52,6 +55,8 @@ export function PublicShell({ pathname }: PublicShellProps) {
       </header>
       {pathname === "/" ? (
         <DiscoveryRoute />
+      ) : pathname === "/enregistrees" ? (
+        <SavedPharmaciesPage />
       ) : routePreviewId ? (
         <RoutePreviewRoute id={routePreviewId} />
       ) : pharmacyDetailId ? (

@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ActivePublicPharmacy } from "@wanzila/contracts";
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { toPharmacyFeatures } from "./pharmacy-map-features";
+
+type MapPharmacy = {
+  id: string;
+  name: string;
+  coordinates?: { latitude: number; longitude: number };
+};
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -19,7 +24,7 @@ export function PharmacyMap({
   selectedId,
   onSelect,
 }: {
-  pharmacies: readonly ActivePublicPharmacy[];
+  pharmacies: readonly MapPharmacy[];
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
