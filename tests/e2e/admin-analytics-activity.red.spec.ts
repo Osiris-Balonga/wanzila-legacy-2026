@@ -1,7 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { adminAnalyticsActivityResponseSchema } from "@wanzila/contracts";
+import {
+  adminAnalyticsActivityResponseSchema,
+  adminAnalyticsOverviewResponseSchema,
+} from "@wanzila/contracts";
 import { analyticsOverviewFixture } from "../../apps/web/src/features/admin-dashboard/testing/analytics-fixtures";
 import { analyticsActivityFixture } from "../../apps/web/src/features/admin-dashboard/testing/activity-fixtures";
 
@@ -145,6 +148,47 @@ test("matching counters do not warn merely because the two asOf instants differ 
   const metrics = page.getByRole("region", { name: "Indicateurs d’activité" });
   await expect(metrics).toContainText(/période précédente de même durée/i);
   await expect(metrics).not.toContainText(/instantanés distincts/i);
+  await expect(metrics.locator(".analytics-mini-series")).toHaveCount(6);
+});
+
+test("midnight changes the local window and detaches #54 mini-series even when all six totals match", async ({
+  page,
+}) => {
+  const overview = analyticsOverviewFixture("7d");
+  overview.data.period.asOf = "2026-09-16T22:59:59.975Z";
+  const activity = analyticsActivityFixture("7d", {
+    asOf: "2026-09-16T23:00:00.025Z",
+  });
+  const nextLocalWindowFrom = "2026-09-10T23:00:00.000Z";
+  activity.data.period.from = nextLocalWindowFrom;
+  activity.data.period.previousTo = nextLocalWindowFrom;
+  activity.data.period.previousFrom = new Date(
+    2 * Date.parse(nextLocalWindowFrom) - Date.parse(activity.data.period.to),
+  ).toISOString();
+  expect(adminAnalyticsOverviewResponseSchema.safeParse(overview).success).toBe(
+    true,
+  );
+  expect(adminAnalyticsActivityResponseSchema.safeParse(activity).success).toBe(
+    true,
+  );
+
+  await page.route("**/api/v1/admin/analytics/overview**", (route) =>
+    route.fulfill({ json: overview }),
+  );
+  await page.route("**/api/v1/admin/analytics/activity**", (route) =>
+    route.fulfill({ json: activity }),
+  );
+  await page.goto("/admin");
+  const metrics = page.getByRole("region", { name: "Indicateurs d’activité" });
+  await expect(metrics).toContainText(/instantanés distincts/i);
+  await expect(metrics).toContainText(/fenêtres|périodes/i);
+  await expect(metrics).toContainText(/16 sept/i);
+  await expect(metrics).toContainText(/17 sept/i);
+  await expect(metrics.locator(".analytics-mini-series")).toHaveCount(0);
+  await expect(metrics).toContainText("28");
+  await expect(
+    page.getByRole("region", { name: "Tunnel d’activité" }),
+  ).toContainText("28");
 });
 
 test("different current counters keep #63 count and delta together and identify the #54 snapshot", async ({
