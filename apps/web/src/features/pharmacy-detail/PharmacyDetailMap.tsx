@@ -27,11 +27,13 @@ export function PharmacyDetailMap({
   name,
   origin,
   route,
+  interactive = false,
 }: {
   coordinates: { latitude: number; longitude: number };
   name: string;
   origin?: { latitude: number; longitude: number } | null;
   route?: RouteLineFeature | null;
+  interactive?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -55,7 +57,7 @@ export function PharmacyDetailMap({
           center: [coordinates.longitude, coordinates.latitude],
           zoom: 14.5,
           attributionControl: false,
-          interactive: false,
+          interactive,
         });
         map.addControl(
           new maplibre.AttributionControl({ compact: false }),
@@ -181,7 +183,14 @@ export function PharmacyDetailMap({
       demonstrationOriginMarker?.remove();
       map?.remove();
     };
-  }, [coordinates.latitude, coordinates.longitude, name, origin, route]);
+  }, [
+    coordinates.latitude,
+    coordinates.longitude,
+    interactive,
+    name,
+    origin,
+    route,
+  ]);
 
   return (
     <section

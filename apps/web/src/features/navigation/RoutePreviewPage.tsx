@@ -1,12 +1,13 @@
 import { ClockIcon } from "@phosphor-icons/react/Clock";
+import { CarIcon } from "@phosphor-icons/react/Car";
+import { CrosshairIcon } from "@phosphor-icons/react/Crosshair";
 import { MapPinIcon } from "@phosphor-icons/react/MapPin";
+import { MotorcycleIcon } from "@phosphor-icons/react/Motorcycle";
+import { PersonSimpleWalkIcon } from "@phosphor-icons/react/PersonSimpleWalk";
 import {
   ArrowLeft,
-  CarFront,
   Check,
   Clipboard,
-  Footprints,
-  LocateFixed,
   Navigation,
   Phone,
   RotateCcw,
@@ -42,11 +43,11 @@ type LocationState =
 const modeOptions: {
   value: TravelMode;
   label: string;
-  icon: typeof CarFront;
+  icon: typeof CarIcon;
 }[] = [
-  { value: "car", label: "Voiture", icon: CarFront },
-  { value: "moto", label: "Moto", icon: Navigation },
-  { value: "walk", label: "À pied", icon: Footprints },
+  { value: "car", label: "Voiture", icon: CarIcon },
+  { value: "moto", label: "Moto", icon: MotorcycleIcon },
+  { value: "walk", label: "À pied", icon: PersonSimpleWalkIcon },
 ];
 
 function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
@@ -161,6 +162,7 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
         {destination ? (
           <PharmacyDetailMap
             coordinates={destination}
+            interactive
             name={pharmacy.name}
             origin={location.status === "obtained" ? location.position : null}
             route={route?.feature ?? null}
@@ -172,7 +174,7 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
         )}
         {route ? (
           <div className="route-preview-map-badge" role="note">
-            <CarFront aria-hidden="true" />
+            <CarIcon aria-hidden="true" weight="fill" />
             <span>7 min · 2,4 km</span>
             <small>Démonstration</small>
           </div>
@@ -187,7 +189,7 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
             type="button"
             variant="outline"
           >
-            <LocateFixed aria-hidden="true" />
+            <CrosshairIcon aria-hidden="true" weight="fill" />
           </Button>
         </div>
       </section>
@@ -233,7 +235,7 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
               onClick={() => setMode(value)}
               type="button"
             >
-              <Icon aria-hidden="true" /> {label}
+              <Icon aria-hidden="true" weight="fill" /> {label}
             </button>
           ))}
         </div>
@@ -315,7 +317,8 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
             </Button>
           ) : (
             <Button onClick={requestLocation} type="button" variant="outline">
-              <LocateFixed aria-hidden="true" /> Utiliser ma position
+              <CrosshairIcon aria-hidden="true" weight="fill" /> Utiliser ma
+              position
             </Button>
           )}
           {address ? (

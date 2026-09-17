@@ -298,6 +298,30 @@ test("map failure leaves destination, address, call and external hand-off", asyn
   ).toBeVisible();
 });
 
+test("the route map can be explored by dragging without requesting location", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await expect(page.locator(".pharmacy-detail-map__canvas")).toHaveAttribute(
+    "data-map-status",
+    "ready",
+  );
+  const marker = page.locator(".pharmacy-detail-map__marker");
+  const before = await marker.boundingBox();
+  expect(before).not.toBeNull();
+  await page.mouse.move(30, 350);
+  await page.mouse.down();
+  await page.mouse.move(120, 350, { steps: 10 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await marker.boundingBox())?.x)
+    .toBeGreaterThan(before!.x + 25);
+  await expect(
+    page.getByText(/position obtenue pour cette session/i),
+  ).toHaveCount(0);
+});
+
 test("route preview is keyboard-accessible and responsive", async ({
   page,
 }, testInfo) => {

@@ -21,12 +21,12 @@ The source phone image is 941 × 1672 px. Per `reference-manifest.json`, its web
 
 ## Annotated differences
 
-1. **Map and line:** the Wanzila MapLibre style and attribution are reused from the pharmacy detail map. The purple line has separate white casing and main line layers. Its blue origin is labelled as a fictitious demonstration point; the destination pin uses the pharmacy's validated coordinates. The street geometry is not copied from the artwork or claimed to be calculated.
+1. **Map and line:** the Wanzila MapLibre style and attribution are reused from the pharmacy detail map. The route preview permits drag/zoom, while the detail map remains static. The purple line has separate white casing and main line layers. Its blue origin is labelled as a fictitious demonstration point; the destination pin uses the pharmacy's validated coordinates. The street geometry is not copied from the artwork or claimed to be calculated.
 2. **Distance and time:** `7 min` and `2,4 km` are shown only for the explicit Jagger/car fixture, with **Tracé de démonstration** text in the panel and **Démonstration** on the map chip. Switching mode or destination removes the line and both figures. No live traffic claim is made.
 3. **Departure:** the artwork says “Votre position” before permission, but this implementation waits for an explicit action and never presents the fixture origin as the visitor's real position. Location success, denial, unavailable, timeout, unsupported browser, retry and cancellation are separate states. A successful coordinate stays in component memory only and can be erased.
 4. **Primary action:** “Démarrer” is rendered as **Démarrer dans Google Maps**, because Wanzila cannot provide turn-by-turn guidance. The external URL contains only the validated destination and supported travel mode; no visitor origin is sent by Wanzila. Google Maps may request its own location after the hand-off.
 5. **Fallback:** without the map or destination coordinates, the pharmacy name, address, call and copy actions remain. The external link is withheld if destination coordinates are invalid; a missing route fixture still permits the real external hand-off.
-6. **Shell and composition:** the supplied bottom sheet hierarchy, mode switch, purple primary action and circular map control are retained. The reference does not show the normal three-item public bottom navigation on the route screen, so the route sheet takes that space. At 1440 px the map and information panel sit side by side.
+6. **Shell and composition:** the supplied bottom sheet hierarchy, filled Phosphor travel-mode and location pictograms, purple primary action and circular map control are retained. The reference does not show the normal three-item public bottom navigation on the route screen, so the route sheet takes that space. At 1440 px the map and information panel sit side by side.
 
 ## Missing data and assets
 
@@ -34,7 +34,7 @@ No production routing/geocoding service, live road distance, ETA, traffic, alter
 
 ## Responsive and interaction proof
 
-`tests/e2e/route-preview.spec.ts` covers 320/390/768/1440 px without horizontal overflow, detail and selected-map hand-off, explicit geolocation request, denial, unavailable, timeout, unsupported browser, retry, cancellation of a pending callback, route-fixture isolation, invalid coordinates, map failure, external-link safety and keyboard access. `apps/web/src/features/navigation/route-preview.test.ts` asserts the pure route and URL boundaries. The capture above was generated with `WANZILA_ROUTE_LIVE_MAP=1` and `WANZILA_ROUTE_CAPTURE_DIR=docs/design/evidence/issue-8`; CI does not use that opt-in.
+`tests/e2e/route-preview.spec.ts` covers 320/390/768/1440 px without horizontal overflow, detail and selected-map hand-off, map drag without location permission, explicit geolocation request, denial, unavailable, timeout, unsupported browser, retry, cancellation of a pending callback, route-fixture isolation, invalid coordinates, map failure, external-link safety and keyboard access. `apps/web/src/features/navigation/route-preview.test.ts` asserts the pure route and URL boundaries. The capture above was generated with `WANZILA_ROUTE_LIVE_MAP=1` and `WANZILA_ROUTE_CAPTURE_DIR=docs/design/evidence/issue-8`; CI does not use that opt-in.
 
 ## Visual approval
 
