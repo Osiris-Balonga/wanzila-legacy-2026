@@ -168,7 +168,7 @@ describe("issue #55 data-quality component contract (RED)", () => {
     );
   });
 
-  it("presents actual quality aggregates and explicitly unavailable source/anomaly details", async () => {
+  it("presents actual quality aggregates and keeps anomaly detection explicitly unavailable", async () => {
     const markup = await renderPage("AdminDataQualityPage", {
       status: "success",
       overview: analyticsOverviewFixture().data,
@@ -176,7 +176,7 @@ describe("issue #55 data-quality component contract (RED)", () => {
 
     expect(markup).toContain("Sources &amp; qualité des données");
     expect(markup).toContain("Sources de planning");
-    expect(markup).toContain("Couverture des gardes");
+    expect(markup).toMatch(/couverture des gardes/i);
     expect(markup).toContain("Qualité des données");
     expect(markup).toContain("Anomalies à traiter");
     expect(markup).toContain("Actions en attente");
@@ -187,7 +187,7 @@ describe("issue #55 data-quality component contract (RED)", () => {
     expect(markup).toMatch(/aucun décompte d’anomalies n’est déduit/i);
     expect(markup).toMatch(/sources à jour|sources fraîches/i);
     expect(markup).toMatch(/sources (?:en retard|périmées)/i);
-    expect(markup).toMatch(/détail des sources indisponible/i);
+    expect(markup).toMatch(/chargement du détail/i);
     expect(markup).toMatch(/détection des anomalies indisponible/i);
     expect(markup).not.toMatch(/vs semaine précédente|qualité globale.*87%/i);
   });
@@ -202,7 +202,7 @@ describe("issue #55 data-quality component contract (RED)", () => {
       status: "empty",
       overview: analyticsOverviewFixture("7d", true).data,
     });
-    expect(empty).toMatch(/aucune donnée|aucune source/i);
+    expect(empty).toMatch(/aucune activité|aucune source/i);
     expect(empty).not.toContain("87%");
 
     const error = await renderPage("AdminDataQualityPage", {

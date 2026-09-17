@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { analyticsOverviewFixture } from "../../apps/web/src/features/admin-dashboard/testing/analytics-fixtures";
+import { qualityDetailFixture } from "../../apps/web/src/features/admin-dashboard/testing/quality-fixtures";
 
 test.use({
   locale: "fr-FR",
@@ -34,6 +35,15 @@ async function mockOverview(
   options: { empty?: boolean; status?: number; hold?: Promise<void> } = {},
 ) {
   const requested: string[] = [];
+  await page.route("**/api/v1/admin/analytics/quality**", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    await route.fulfill({
+      json: qualityDetailFixture(
+        Number(params.get("sourcePage")),
+        Number(params.get("coveragePage")),
+      ),
+    });
+  });
   await page.route("**/api/v1/admin/analytics/overview**", async (route) => {
     const url = new URL(route.request().url());
     requested.push(`${url.pathname}${url.search}`);
@@ -149,8 +159,8 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
     await expect(page.getByRole("region", { name: region })).toBeVisible();
   }
   await expect(
-    page.getByText(/Détail des sources indisponible/i),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Sources de planning" }),
+  ).toContainText("Ordre national des pharmaciens");
   await expect(
     page.getByText(/Détection des anomalies indisponible/i),
   ).toBeVisible();
