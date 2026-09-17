@@ -100,7 +100,16 @@ export async function createApp(options: AppOptions) {
     options.analyticsRateLimitMax ?? DEFAULT_ANALYTICS_RATE_LIMIT_MAX;
   const nodeEnvironment = options.nodeEnvironment ?? "development";
 
-  await app.register(helmet);
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        // The bundled MapLibre style fetches vector tiles and font glyphs
+        // from this origin. Keep every other Helmet CSP directive at its
+        // restrictive default value.
+        "connect-src": ["'self'", "https://tiles.openfreemap.org"],
+      },
+    },
+  });
   await app.register(cookie);
   await app.register(rateLimit, {
     max: rateLimitMax,
