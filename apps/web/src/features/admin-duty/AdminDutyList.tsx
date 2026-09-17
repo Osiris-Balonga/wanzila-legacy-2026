@@ -277,6 +277,13 @@ function DutyRows({
                           </a>
                         </DropdownMenuItem>
                       ) : null}
+                      {duty.status === "APPROVED" ? (
+                        <DropdownMenuItem asChild>
+                          <a href={`/admin/gardes/${duty.id}/exceptions`}>
+                            Gérer les exceptions
+                          </a>
+                        </DropdownMenuItem>
+                      ) : null}
                       {pharmacy ? (
                         <DropdownMenuItem asChild>
                           <a href={`/admin/pharmacies/${pharmacy.id}`}>
@@ -443,12 +450,17 @@ export function AdminDutyList() {
           <h1>Gardes</h1>
           <p>Gestion des périodes de garde des pharmacies.</p>
         </div>
-        <Button asChild className="admin-duty__primary-action">
-          <a href="/admin/gardes/nouvelle">
-            <Plus aria-hidden="true" />
-            Créer une garde
-          </a>
-        </Button>
+        <div className="admin-duty-operations__heading-actions">
+          <Button asChild variant="outline">
+            <a href="/admin/gardes/sources">Gérer les sources</a>
+          </Button>
+          <Button asChild className="admin-duty__primary-action">
+            <a href="/admin/gardes/nouvelle">
+              <Plus aria-hidden="true" />
+              Créer une garde
+            </a>
+          </Button>
+        </div>
       </header>
 
       <SummaryCards state={summary} />
