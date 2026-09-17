@@ -44,7 +44,11 @@ import "./route-preview.css";
 type LocationState =
   | { status: "idle" }
   | { status: "requesting" }
-  | { status: "obtained"; position: Coordinates }
+  | {
+      status: "obtained";
+      position: Coordinates;
+      accuracyMeters: number | null;
+    }
   | { status: LocationFailure | "unsupported" };
 
 const modeOptions: {
@@ -92,6 +96,14 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
     arrivalState.status === "active" ||
     arrivalState.status === "arrived";
   const route = routeState.status === "success" ? routeState.route : null;
+  const originAccuracyWarning =
+    location.status !== "obtained"
+      ? null
+      : location.accuracyMeters === null
+        ? "La précision de votre position GPS est inconnue. Le départ et la distance du trajet peuvent être inexacts."
+        : location.accuracyMeters > 100
+          ? `Votre position GPS est imprécise (± ${formatRouteDistance(location.accuracyMeters)}). Le départ et la distance du trajet peuvent être inexacts.`
+          : null;
   const routeLine = useMemo(
     () => (route ? routeFeature(route) : null),
     [route],
@@ -229,7 +241,15 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           };
           setLocation(
             hasUsableCoordinates(position)
-              ? { status: "obtained", position }
+              ? {
+                  status: "obtained",
+                  position,
+                  accuracyMeters:
+                    Number.isFinite(result.coords.accuracy) &&
+                    result.coords.accuracy >= 0
+                      ? result.coords.accuracy
+                      : null,
+                }
               : { status: "unavailable" },
           );
         },
@@ -303,8 +323,11 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
             interactive
             name={pharmacy.name}
             origin={
-              arrivalPosition ??
-              (location.status === "obtained" ? location.position : null)
+              showingNavigation
+                ? arrivalPosition
+                : location.status === "obtained"
+                  ? location.position
+                  : null
             }
             route={routeLine}
             focusDestination={arrivalState.status === "arrived"}
@@ -405,6 +428,11 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
               <span>({formatRouteDistance(route.distanceMeters)})</span>
             </div>
             <p>Trajet estimé sans trafic en temps réel.</p>
+            {originAccuracyWarning ? (
+              <p className="route-preview-accuracy-warning" role="note">
+                {originAccuracyWarning}
+              </p>
+            ) : null}
           </div>
         ) : !showingNavigation ? (
           <div className="route-preview-no-route" role="status">
@@ -468,6 +496,12 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
               à Wanzila puis au service FOSSGIS / OpenStreetMap. Ce service
               journalise les requêtes. Wanzila ne conserve pas votre position.
             </p>
+            {originAccuracyWarning ? (
+              <p className="route-preview-accuracy-warning" role="note">
+                {originAccuracyWarning} Vous pouvez réessayer la localisation
+                avant de calculer.
+              </p>
+            ) : null}
             <Button onClick={() => setRouteConsent(true)} type="button">
               Calculer l’itinéraire avec ma position
             </Button>
@@ -490,6 +524,13 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
                 Le trajet routier se termine à{" "}
                 {formatRouteDistance(route.snapDistanceMeters.destination)} du
                 point de la pharmacie. Vérifiez le dernier accès sur la carte.
+              </p>
+            ) : null}
+            {route.snapDistanceMeters.origin > 100 ? (
+              <p className="route-preview-snap-warning" role="note">
+                Le réseau routier commence à{" "}
+                {formatRouteDistance(route.snapDistanceMeters.origin)} de votre
+                point GPS. Vérifiez le point de départ.
               </p>
             ) : null}
             <ol>

@@ -106,15 +106,19 @@ test("route is calculated only after location and transmission consent", async (
     return route.fulfill({ json: calculatedRoute });
   });
   await page.addInitScript(() => {
+    const witness: { success?: PositionCallback } = {};
+    (window as typeof window & { __routeWatch: typeof witness }).__routeWatch =
+      witness;
     Object.defineProperty(navigator, "geolocation", {
       configurable: true,
       value: {
         getCurrentPosition(success: PositionCallback) {
           success({
-            coords: { latitude: -4.2792, longitude: 15.2492 },
+            coords: { latitude: -4.2792, longitude: 15.2492, accuracy: 8 },
           } as GeolocationPosition);
         },
-        watchPosition() {
+        watchPosition(success: PositionCallback) {
+          witness.success = success;
           return 1;
         },
         clearWatch() {},
@@ -181,7 +185,20 @@ test("route is calculated only after location and transmission consent", async (
     page.getByRole("region", { name: "Étapes de l’itinéraire" }),
   ).toBeVisible();
   await expect(canvas).toHaveAttribute("data-route-instance", "same");
-  await page.getByRole("button", { name: "Quitter le suivi" }).click();
+  await page.evaluate(() =>
+    (
+      window as typeof window & { __routeWatch: { success?: PositionCallback } }
+    ).__routeWatch.success?.({
+      coords: { latitude: -4.2636, longitude: 15.2429, accuracy: 5 },
+    } as GeolocationPosition),
+  );
+  await expect(
+    page.getByRole("heading", { name: /arrivée à proximité/i }),
+  ).toBeVisible();
+  await expect(page.locator(".route-preview-map-origin--current")).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Terminer le suivi" }).click();
   await expect(
     page.locator(".route-preview-stops").getByText(/Avenue des Trois Martyrs/),
   ).toBeVisible();
@@ -250,6 +267,41 @@ test("routing failure is honest and can be retried without a fictitious line", a
   ).toBeVisible();
   await expect(page.getByText(/se termine à 180 m du point/i)).toBeVisible();
   expect(calls).toBe(2);
+});
+
+test("imprecise GPS origin is disclosed before consent and beside the route distance", async ({
+  page,
+}) => {
+  let calls = 0;
+  await page.route("**/api/v1/routes", (route) => {
+    calls += 1;
+    return route.fulfill({ json: calculatedRoute });
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition(success: PositionCallback) {
+          success({
+            coords: { latitude: -4.2792, longitude: 15.2492, accuracy: 250 },
+          } as GeolocationPosition);
+        },
+      },
+    });
+  });
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page.getByRole("button", { name: "Utiliser ma position" }).click();
+  await expect(
+    page.getByText(/position GPS est imprécise \(± 250 m\)/i),
+  ).toBeVisible();
+  expect(calls).toBe(0);
+  await page
+    .getByRole("button", { name: "Calculer l’itinéraire avec ma position" })
+    .click();
+  await expect(page.locator(".route-preview-summary")).toContainText(
+    /distance du trajet peuvent être inexacts/i,
+  );
+  expect(calls).toBe(1);
 });
 
 test("location is requested only on click; denial and retry preserve destination hand-off", async ({

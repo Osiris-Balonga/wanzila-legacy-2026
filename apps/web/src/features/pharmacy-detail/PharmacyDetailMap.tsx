@@ -67,7 +67,7 @@ export function PharmacyDetailMap({
       const element = document.createElement("span");
       element.className =
         "route-preview-map-origin route-preview-map-origin--current";
-      element.setAttribute("aria-label", "Votre position actuelle");
+      element.setAttribute("aria-label", "Position GPS de départ ou de suivi");
       originMarkerRef.current = createMarker(element)
         .setLngLat([current.longitude, current.latitude])
         .addTo(map);

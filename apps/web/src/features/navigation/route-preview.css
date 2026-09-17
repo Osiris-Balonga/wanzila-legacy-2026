@@ -313,6 +313,15 @@
   margin: 0.05rem 0 0;
 }
 
+.route-preview-summary .route-preview-accuracy-warning,
+.route-preview-consent .route-preview-accuracy-warning {
+  background: #fff5e8;
+  border-radius: 0.65rem;
+  color: #6d4300;
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.7rem;
+}
+
 .route-preview-no-route {
   background: #f4f3ff;
   border: 0;
