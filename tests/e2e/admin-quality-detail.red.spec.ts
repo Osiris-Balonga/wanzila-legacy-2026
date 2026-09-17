@@ -91,7 +91,7 @@ test("the reviewed #61 response fixture parses and quality requests explicit ind
   expectPageRequest(requests[0]!, 1, 1);
 });
 
-test("source rows show observedAt, reliability, freshness and actual duty counts without invented management actions", async ({
+test("source rows show observedAt, reliability, freshness and actual duty counts with access to source management", async ({
   page,
 }) => {
   await mockOverview(page);
@@ -132,10 +132,37 @@ test("source rows show observedAt, reliability, freshness and actual duty counts
   await expect(sources).toContainText(/instantané|au 16 septembre/i);
   await expect(sources).toContainText(/pas fréquence de synchronisation/i);
   await expect(sources).not.toContainText(/dernière mise à jour/i);
-  await expect(sources.getByRole("link")).toHaveCount(0);
+  await expect(
+    sources.getByRole("link", { name: "Ajouter une source" }),
+  ).toHaveAttribute("href", "/admin/gardes/sources");
   await expect(
     sources.getByRole("button", { name: /modifier|ajouter|supprimer/i }),
   ).toHaveCount(0);
+});
+
+test("source action opens the existing management screen", async ({ page }) => {
+  await mockOverview(page);
+  await mockDetail(page);
+  await page.route("**/api/v1/admin/sources?*", (route) =>
+    route.fulfill({
+      json: {
+        data: [],
+        pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0 },
+      },
+    }),
+  );
+  await page.goto("/admin/qualite");
+  await page
+    .getByRole("region", { name: "Sources de planning" })
+    .getByRole("link", { name: "Ajouter une source" })
+    .click();
+  await expect(page).toHaveURL(/\/admin\/gardes\/sources$/);
+  await expect(
+    page.getByRole("heading", { name: "Sources des plannings" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Ajouter une source" }),
+  ).toBeVisible();
 });
 
 test("coverage lists real arrondissement ratios and global unique-pharmacy totals", async ({
@@ -290,6 +317,9 @@ test("detail request has a distinct loading state and honest empty state", async
   const coverage = page.getByRole("region", { name: "Couverture des gardes" });
   release();
   await expect(sources).toContainText(/aucune source enregistrée/i);
+  await expect(
+    sources.getByRole("link", { name: "Ajouter une source" }),
+  ).toBeVisible();
   await expect(coverage).toContainText(/aucune pharmacie publiée/i);
   await expect(sources.getByRole("table")).toHaveCount(0);
   await expect(coverage).not.toContainText("70%");
@@ -408,6 +438,16 @@ for (const width of [320, 390, 768, 1440]) {
     });
     await expect(sources).toContainText("Ordre national des pharmaciens");
     await expect(coverage).toContainText("Bacongo");
+    const addSource = sources.getByRole("link", {
+      name: "Ajouter une source",
+    });
+    await expect(addSource).toBeVisible();
+    await addSource.focus();
+    await expect(addSource).toBeFocused();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(addSource).toBeFocused();
+    await expect(addSource).toHaveCSS("box-shadow", /^(?!none$).+/);
     const dimensions = await page.locator("html").evaluate((element) => ({
       scroll: element.scrollWidth,
       client: element.clientWidth,
