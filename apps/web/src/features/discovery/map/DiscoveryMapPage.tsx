@@ -63,6 +63,8 @@ export function DiscoveryMapPage({
   const [query, setQuery] = useState(filters.q ?? "");
   const pharmacies = currentPharmacies(state);
   const selected = pharmacies.find((pharmacy) => pharmacy.id === selectedId);
+  const selectedNeedsConfirmation =
+    selected !== undefined && selected.currentDuty.sourceFreshness !== "FRESH";
 
   useEffect(() => setQuery(filters.q ?? ""), [filters.q]);
 
@@ -104,7 +106,7 @@ export function DiscoveryMapPage({
         </form>
         <div className="discovery-map-filters">
           <span className="discovery-map-filters__active">
-            <ClockIcon aria-hidden="true" weight="fill" /> Ouvertes maintenant
+            <ClockIcon aria-hidden="true" weight="fill" /> Gardes indiquées
           </span>
           <label>
             <MapPinIcon aria-hidden="true" weight="fill" />
@@ -217,9 +219,13 @@ export function DiscoveryMapPage({
             </span>
             <div>
               <h2>{selected.name}</h2>
-              <span className="discovery-map-selection__duty">
-                <ClockIcon aria-hidden="true" weight="fill" /> De garde
-                maintenant
+              <span
+                className={`discovery-map-selection__duty${selectedNeedsConfirmation ? " discovery-map-selection__duty--uncertain" : ""}`}
+              >
+                <ClockIcon aria-hidden="true" weight="fill" />{" "}
+                {selectedNeedsConfirmation
+                  ? "Garde à confirmer"
+                  : "De garde maintenant"}
               </span>
             </div>
             <Button
@@ -239,6 +245,16 @@ export function DiscoveryMapPage({
             <ClockIcon aria-hidden="true" weight="fill" /> Jusqu’à{" "}
             {dutyEnd(selected.currentDuty.endsAt)}
           </p>
+          {selectedNeedsConfirmation ? (
+            <p className="discovery-map-selection__uncertain">
+              {selected.currentDuty.sourceFreshness === "STALE"
+                ? "Source ancienne. "
+                : "Fraîcheur de la source inconnue. "}
+              {selected.phone
+                ? "Confirmez par téléphone avant de vous déplacer."
+                : "Vérifiez la disponibilité avant de vous déplacer."}
+            </p>
+          ) : null}
           <div className="discovery-map-selection__actions">
             {selected.phone ? (
               <Button asChild variant="secondary">

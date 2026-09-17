@@ -111,7 +111,10 @@ function PharmacyResult({
         </span>
         <span className="discovery-result__duty">
           <Clock3 aria-hidden="true" />
-          Ouverte jusqu’au {formatDate(pharmacy.currentDuty.endsAt)}
+          {pharmacy.currentDuty.sourceFreshness === "FRESH"
+            ? "De garde jusqu’au "
+            : "Garde indiquée jusqu’au "}
+          {formatDate(pharmacy.currentDuty.endsAt)}
         </span>
         <span
           className={`discovery-result__freshness discovery-result__freshness--${pharmacy.currentDuty.sourceFreshness.toLowerCase()}`}
@@ -179,7 +182,7 @@ export function DiscoveryPage({
             <h1 id="discovery-title">Pharmacies de garde</h1>
           </div>
           <span className="discovery-page__live-pill">
-            <span aria-hidden="true" /> Ouvertes maintenant
+            <span aria-hidden="true" /> Gardes indiquées
           </span>
         </div>
         <form
