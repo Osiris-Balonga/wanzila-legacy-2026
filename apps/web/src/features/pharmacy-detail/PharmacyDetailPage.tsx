@@ -32,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { SavedPharmacyButton } from "@/features/saved-pharmacies/SavedPharmacyButton";
 import { PharmacyPhoto } from "@/components/PharmacyPhoto";
+import { PharmacyRoadDistance } from "./PharmacyRoadDistance";
 import {
   createPharmacyDetailClient,
   type PharmacyDetailState,
@@ -379,6 +380,7 @@ function PharmacyDetailContent({
               </small>
             </span>
           </div>
+          <PharmacyRoadDistance pharmacy={pharmacy} />
           <div className="pharmacy-detail-fact pharmacy-detail-fact--source">
             <ShieldCheck
               aria-hidden="true"
