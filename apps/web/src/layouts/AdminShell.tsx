@@ -1,22 +1,20 @@
-import { useRef, useState, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { LogOut } from "lucide-react";
 import { FirstAidKitIcon } from "@phosphor-icons/react/FirstAidKit";
 import { SealCheckIcon } from "@phosphor-icons/react/SealCheck";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { Icon, type IconName } from "../components/Icon";
-import { EmptyState } from "../components/EmptyState";
 import {
   AdminConnection,
   AdminPharmacyDirectory,
 } from "../features/admin-pharmacy/AdminPharmacyDirectory";
 import { AdminAnalyticsRoute } from "../features/admin-dashboard/AdminAnalyticsRoute";
 import { AdminDutyPage } from "../features/admin-duty/AdminDutyPage";
+import { AdminContributionsPage } from "../features/admin-contributions/AdminContributionsPage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
   SheetContent,
@@ -84,7 +82,6 @@ function Navigation({
 }
 
 export function AdminShell({ pathname }: AdminShellProps) {
-  const [activeTabId, setActiveTabId] = useState("overview");
   const mobileNavigationFirstLinkRef = useRef<HTMLAnchorElement>(null);
 
   if (pathname === "/admin/connexion") {
@@ -93,6 +90,7 @@ export function AdminShell({ pathname }: AdminShellProps) {
 
   const isPharmacyRoute = pathname.startsWith("/admin/pharmacies");
   const isDutyRoute = pathname.startsWith("/admin/gardes");
+  const isContributionRoute = pathname.startsWith("/admin/contributions");
   const signOut = async () => {
     await fetch("/api/v1/admin/auth/sign-out", {
       method: "POST",
@@ -220,67 +218,16 @@ export function AdminShell({ pathname }: AdminShellProps) {
           />
         ) : isDutyRoute ? (
           <AdminDutyPage pathname={pathname} />
+        ) : isContributionRoute ? (
+          <AdminContributionsPage pathname={pathname} />
         ) : (
-          <>
-            <div className="page-heading">
-              <div>
-                <p className="overline">Administration</p>
-                <h1>Fondation de l’interface</h1>
-                <p>
-                  Un cadre de navigation et des composants cohérents pour les
-                  futures surfaces.
-                </p>
-              </div>
-              <Badge className="wanzila-badge" variant="secondary">
-                Sans données
-              </Badge>
+          <div className="page-heading">
+            <div>
+              <h1>Page introuvable</h1>
+              <p>Cette section d’administration n’existe pas.</p>
+              <a href="/admin">Retour au tableau de bord</a>
             </div>
-            <Tabs onValueChange={setActiveTabId} value={activeTabId}>
-              <TabsList
-                aria-label="Sections de démonstration"
-                className="admin-tabs"
-              >
-                <TabsTrigger
-                  tabIndex={activeTabId === "overview" ? 0 : -1}
-                  value="overview"
-                >
-                  Vue d’ensemble
-                </TabsTrigger>
-                <TabsTrigger
-                  tabIndex={activeTabId === "components" ? 0 : -1}
-                  value="components"
-                >
-                  Composants
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="overview">
-                <Card className="admin-placeholder">
-                  <CardContent>
-                    <EmptyState
-                      icon="dashboard"
-                      title="Surface prête à assembler"
-                    >
-                      Les tableaux, flux et métriques relèvent des issues métier
-                      à venir.
-                    </EmptyState>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              <TabsContent value="components">
-                <Card className="admin-placeholder">
-                  <CardContent>
-                    <EmptyState
-                      icon="settings"
-                      title="Primitives prêtes à employer"
-                    >
-                      Les composants partagés sont accessibles aux futures
-                      surfaces sans ajouter de logique métier.
-                    </EmptyState>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </>
+          </div>
         )}
       </main>
     </div>
