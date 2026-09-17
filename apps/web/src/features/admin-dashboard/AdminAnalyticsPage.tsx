@@ -246,10 +246,13 @@ function DashboardMetrics({
   overview: Overview;
   activity: Activity;
 }) {
-  const countsDiverge = eventMetrics.some(
-    ({ key }) =>
-      activity.comparisons[key].current !== overview.events.totals[key],
-  );
+  const snapshotsDiffer =
+    overview.window !== activity.window ||
+    overview.period.from !== activity.period.from ||
+    eventMetrics.some(
+      ({ key }) =>
+        activity.comparisons[key].current !== overview.events.totals[key],
+    );
   return (
     <section
       aria-label="Indicateurs d’activité"
@@ -268,7 +271,7 @@ function DashboardMetrics({
                 ? "Comparaison indisponible"
                 : `${delta(activity.comparisons[key].deltaPercent)} vs période précédente`}
             </small>
-            {countsDiverge ? null : (
+            {snapshotsDiffer ? null : (
               <MiniSeries
                 label={label}
                 values={overview.events.daily.map((day) => day.counts[key])}
@@ -280,12 +283,12 @@ function DashboardMetrics({
       <p className="analytics-metrics__context">
         KPI au {snapshotTime(activity.period.asOf)} · comparaison avec la
         période précédente de même durée.
-        {countsDiverge ? (
+        {snapshotsDiffer ? (
           <span>
             {" "}
             Instantanés distincts : les séries et le tunnel ci-dessous
-            proviennent du rapport au {snapshotTime(overview.period.asOf)}.
-            Leurs comptes peuvent différer des KPI ; leurs courbes ne sont pas
+            proviennent du rapport au {snapshotTime(overview.period.asOf)}. Les
+            périodes ou les comptes diffèrent ; leurs courbes ne sont pas
             accolées aux KPI.
           </span>
         ) : null}
