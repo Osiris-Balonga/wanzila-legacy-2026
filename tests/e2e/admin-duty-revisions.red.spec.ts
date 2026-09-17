@@ -5,6 +5,8 @@ const pharmacyId = "00000000-0000-4000-8000-000000007302";
 const sourceId = "00000000-0000-4000-8000-000000007303";
 const nextSourceId = "00000000-0000-4000-8000-000000007304";
 const revisionId = "00000000-0000-4000-8000-000000007305";
+const submitterId = "00000000-0000-4000-8000-000000007306";
+const reviewerId = "00000000-0000-4000-8000-000000007307";
 const editUrl = `/admin/gardes/${dutyId}/modifier`;
 const dutyPath = `/api/v1/admin/duties/${dutyId}`;
 const revisionsPath = `${dutyPath}/revisions`;
@@ -16,7 +18,6 @@ const canonical = {
   startsAt: "2026-09-17T17:00:00.000Z",
   endsAt: "2026-09-18T07:00:00.000Z",
   status: "APPROVED",
-  version: 2,
   createdAt: "2026-09-10T08:15:00.000Z",
   updatedAt: "2026-09-12T13:32:00.000Z",
 };
@@ -67,13 +68,13 @@ const revision = {
     startsAt: canonical.startsAt,
     endsAt: canonical.endsAt,
   },
-  after: {
+  proposed: {
     sourceId: nextSourceId,
     startsAt: "2026-09-18T17:00:00.000Z",
     endsAt: "2026-09-19T07:00:00.000Z",
   },
-  note: "Correction du planning reçu de l’agence sanitaire.",
-  submittedBy: "Administrateur de test",
+  submissionNote: "Correction du planning reçu de l’agence sanitaire.",
+  submittedBy: { id: submitterId, displayName: "Administrateur de test" },
   submittedAt: "2026-09-16T12:00:00.000Z",
   reviewedBy: null,
   reviewedAt: null,
@@ -86,6 +87,7 @@ const pageInfo = (total: number) => ({
   total,
   totalPages: total === 0 ? 0 : 1,
 });
+const reviewer = { id: reviewerId, displayName: "Réviseur de test" };
 
 type MockOptions = {
   dutyStatus?: number;
@@ -172,11 +174,7 @@ test("the duty directory exposes Modifier in the row ellipse menu", async ({
   );
   await page.route("**/api/v1/admin/duties?*", (route) =>
     route.fulfill({
-      // The current directory contract predates #72's version field.
-      json: {
-        data: [{ ...canonical, version: undefined }],
-        pagination: pageInfo(1),
-      },
+      json: { data: [canonical], pagination: pageInfo(1) },
     }),
   );
   await page.goto("/admin/gardes");
@@ -200,7 +198,7 @@ test("APPROVED page separates published canonical values, editable proposal and 
       {
         ...revision,
         status: "REJECTED",
-        reviewedBy: "Réviseur de test",
+        reviewedBy: reviewer,
         reviewedAt: "2026-09-16T13:00:00.000Z",
         reviewNote: "Changement confirmé",
       },
@@ -217,7 +215,7 @@ test("APPROVED page separates published canonical values, editable proposal and 
   const history = page.getByRole("region", {
     name: /historique des modifications/i,
   });
-  await expect(history).toContainText(revision.note);
+  await expect(history).toContainText(revision.submissionNote);
   await expect(history).toContainText("Planning officiel");
   await expect(history).toContainText("Agence sanitaire");
   await expect(history).toContainText("Administrateur de test");
@@ -277,11 +275,11 @@ test("history pages are loaded from the revision ledger, not a local slice", asy
                 ...revision,
                 id: `00000000-0000-4000-8000-${String(7306 + index).padStart(12, "0")}`,
                 status: "REJECTED",
-                note: `Motif réel ${index + 1}`,
-                reviewedBy: "Réviseur de test",
+                submissionNote: `Motif réel ${index + 1}`,
+                reviewedBy: reviewer,
                 reviewedAt: "2026-09-16T13:00:00.000Z",
               }))
-            : [{ ...revision, note: "Motif réel page deux" }],
+            : [{ ...revision, submissionNote: "Motif réel page deux" }],
         pagination: {
           page: requestedPage,
           pageSize: 10,
@@ -330,7 +328,7 @@ test("invalid proposal is blocked, then one POST submits a PENDING revision with
   let submitted = 0;
   const submittedRevision = {
     ...revision,
-    after: { ...revision.after, sourceId },
+    proposed: { ...revision.proposed, sourceId },
   };
   let directPatch = 0;
   let directApproval = 0;
@@ -413,7 +411,7 @@ test("an existing PENDING revision cannot be overwritten and review is confirmed
     currentRevision = {
       ...revision,
       status: "REJECTED",
-      reviewedBy: "Réviseur de test",
+      reviewedBy: reviewer,
       reviewedAt: "2026-09-16T13:00:00.000Z",
       reviewNote: "Période incorrecte",
     };
@@ -457,7 +455,7 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
             ? {
                 ...revision,
                 status: "APPROVED",
-                reviewedBy: "Réviseur de test",
+                reviewedBy: reviewer,
                 reviewedAt: "2026-09-16T13:00:00.000Z",
               }
             : revision,
@@ -472,7 +470,7 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
     return route.fulfill({
       json: {
         data: approvedOnServer
-          ? { ...canonical, ...revision.after, version: 3 }
+          ? { ...canonical, ...revision.proposed }
           : canonical,
       },
     });
@@ -484,7 +482,7 @@ test("approval uses the revision endpoint and reloads the canonical duty", async
         data: {
           ...revision,
           status: "APPROVED",
-          reviewedBy: "Réviseur de test",
+          reviewedBy: reviewer,
           reviewedAt: "2026-09-16T13:00:00.000Z",
           reviewNote: null,
         },

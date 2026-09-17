@@ -35,8 +35,10 @@ The lead confirmed that #73 GREEN covers the APPROVED→revision path only. A
 PENDING duty at the edit URL must get an honest accessible non-editor state and
 a return link; its editor will be a separate issue if needed.
 
-The #72 route names and ledger fields are announced in its issue. Its exact
-response schema is not yet merged into this branch, so the deterministic e2e
-fixtures reflect the announced before/after/version/audit shape and may need
-field-name alignment after the reviewed contract lands. The tests must retain
-their behavioral assertions when that alignment happens.
+The #72 API contract is proposed in PR #74 but is not yet merged into this
+branch. The deterministic fixtures now match its exact response shape:
+`before`/`proposed` snapshots, `submissionNote`, actor objects with `id` and
+`displayName`, and `baseVersion` on the revision. GET duty detail still uses
+`adminDutySchema` and does not expose a version. The POST proposal sends
+`sourceId`, `startsAt`, `endsAt` and `note`. Behavioral assertions should remain
+when the reviewed contract lands.
