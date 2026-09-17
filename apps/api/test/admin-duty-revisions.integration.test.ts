@@ -528,6 +528,54 @@ describe.runIf(Boolean(databaseUrl))(
       ).toBe(ids.source);
     });
 
+    it("serializes an exception write racing approval without publishing an invalid interval", async () => {
+      const duty = await approvedDuty();
+      const revisionId = data<{ id: string }>(await submit(duty.id)).id;
+      const [exception, approval] = await Promise.all([
+        app.inject({
+          method: "POST",
+          url: `/api/v1/admin/duties/${duty.id}/exceptions`,
+          headers: headers(),
+          payload: {
+            kind: "CANCELLED",
+            startsAt: START,
+            endsAt: "2026-09-16T09:00:00.000Z",
+          },
+        }),
+        review(duty.id, revisionId, "approve"),
+      ]);
+      const canonical = await prisma.dutyPeriod.findUniqueOrThrow({
+        where: { id: duty.id },
+        include: { exceptions: true },
+      });
+      if (approval.statusCode === 200) {
+        expect(exception.statusCode).toBe(400);
+        expect(canonical.startsAt.toISOString()).toBe(PROPOSED_START);
+        expect(canonical.exceptions).toHaveLength(0);
+      } else {
+        expect(approval.statusCode).toBe(409);
+        expect(exception.statusCode).toBe(201);
+        expect(canonical.startsAt.toISOString()).toBe(START);
+        expect(canonical.exceptions).toHaveLength(1);
+      }
+    });
+
+    it("returns a coherent public page/count snapshot while approval commits", async () => {
+      const duty = await approvedDuty();
+      const revisionId = data<{ id: string }>(await submit(duty.id)).id;
+      const [publicList, approval] = await Promise.all([
+        app.inject({ method: "GET", url: "/api/v1/pharmacies" }),
+        review(duty.id, revisionId, "approve"),
+      ]);
+      expect(approval.statusCode).toBe(200);
+      const body = publicList.json() as {
+        data: Array<{ id: string }>;
+        pagination: { total: number };
+      };
+      expect(body.pagination.total).toBe(body.data.length);
+      expect(body.data.length).toBeLessThanOrEqual(1);
+    });
+
     it("validates strict payloads and protects GET and mutation routes with session/Origin", async () => {
       const duty = await approvedDuty();
       const url = revisionUrl(duty.id);
