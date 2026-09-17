@@ -127,7 +127,7 @@ export function DutyEditSidebar({
   duty: AdminDuty;
   pharmacy: AdminPharmacy;
   sources: AdminScheduleSource[];
-  revisions: RevisionPage;
+  revisions: RevisionPage | null;
   fields: LocalFields;
   historyBusy: boolean;
   onReview: (target: ReviewTarget, trigger: HTMLButtonElement) => void;
@@ -173,62 +173,64 @@ export function DutyEditSidebar({
         </p>
       </section>
 
-      <section
-        aria-label="Historique des modifications"
-        className="admin-duty-edit__side-card admin-duty-edit__history"
-      >
-        <div className="admin-duty-edit__side-heading">
-          <h2 id="duty-edit-history-heading" tabIndex={-1}>
-            Historique des modifications
-          </h2>
-        </div>
-        {revisions.data.length ? (
-          <ol>
-            {revisions.data.map((revision) => (
-              <HistoryEntry
-                key={revision.id}
-                onReview={onReview}
-                revision={revision}
-                sources={sources}
-              />
-            ))}
-          </ol>
-        ) : (
-          <p className="admin-duty-edit__legacy">
-            Historique antérieur indisponible
-          </p>
-        )}
-        {revisions.pagination.totalPages > 1 ? (
-          <nav
-            aria-label="Pagination de l’historique"
-            className="admin-duty-edit__pagination"
-          >
-            <Button
-              disabled={historyBusy || revisions.pagination.page <= 1}
-              onClick={() => onHistoryPage(revisions.pagination.page - 1)}
-              type="button"
-              variant="outline"
+      {revisions ? (
+        <section
+          aria-label="Historique des modifications"
+          className="admin-duty-edit__side-card admin-duty-edit__history"
+        >
+          <div className="admin-duty-edit__side-heading">
+            <h2 id="duty-edit-history-heading" tabIndex={-1}>
+              Historique des modifications
+            </h2>
+          </div>
+          {revisions.data.length ? (
+            <ol>
+              {revisions.data.map((revision) => (
+                <HistoryEntry
+                  key={revision.id}
+                  onReview={onReview}
+                  revision={revision}
+                  sources={sources}
+                />
+              ))}
+            </ol>
+          ) : (
+            <p className="admin-duty-edit__legacy">
+              Historique antérieur indisponible
+            </p>
+          )}
+          {revisions.pagination.totalPages > 1 ? (
+            <nav
+              aria-label="Pagination de l’historique"
+              className="admin-duty-edit__pagination"
             >
-              Page précédente
-            </Button>
-            <span>
-              Page {revisions.pagination.page} sur{" "}
-              {revisions.pagination.totalPages}
-            </span>
-            <Button
-              disabled={
-                historyBusy ||
-                revisions.pagination.page >= revisions.pagination.totalPages
-              }
-              onClick={() => onHistoryPage(revisions.pagination.page + 1)}
-              type="button"
-              variant="outline"
-            >
-              Page suivante
-            </Button>
-          </nav>
-        ) : null}
-      </section>
+              <Button
+                disabled={historyBusy || revisions.pagination.page <= 1}
+                onClick={() => onHistoryPage(revisions.pagination.page - 1)}
+                type="button"
+                variant="outline"
+              >
+                Page précédente
+              </Button>
+              <span>
+                Page {revisions.pagination.page} sur{" "}
+                {revisions.pagination.totalPages}
+              </span>
+              <Button
+                disabled={
+                  historyBusy ||
+                  revisions.pagination.page >= revisions.pagination.totalPages
+                }
+                onClick={() => onHistoryPage(revisions.pagination.page + 1)}
+                type="button"
+                variant="outline"
+              >
+                Page suivante
+              </Button>
+            </nav>
+          ) : null}
+        </section>
+      ) : null}
 
       <section
         aria-label="Informations complémentaires"
@@ -249,7 +251,11 @@ export function DutyEditSidebar({
         <div>
           <FileTextIcon aria-hidden="true" weight="fill" />
           <span>
-            <strong>Version publiée</strong>
+            <strong>
+              {duty.status === "PENDING"
+                ? "Garde en attente"
+                : "Version publiée"}
+            </strong>
             Du {dateLabel(duty.startsAt)} au {dateLabel(duty.endsAt)}
           </span>
         </div>
