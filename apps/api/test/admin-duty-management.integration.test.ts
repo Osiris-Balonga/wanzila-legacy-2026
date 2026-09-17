@@ -616,6 +616,177 @@ describe.runIf(Boolean(disposableTestDatabaseUrl))(
       });
     });
 
+    it("atomically cancels an approved duty with partial history and keeps public reads unambiguous", async () => {
+      const duty = await prisma.dutyPeriod.create({
+        data: {
+          pharmacyId: ids.alpha,
+          startsAt: new Date(START),
+          endsAt: new Date(END),
+          status: "APPROVED",
+        },
+      });
+      await prisma.dutyException.createMany({
+        data: [
+          {
+            dutyPeriodId: duty.id,
+            kind: "UNAVAILABLE",
+            startsAt: new Date("2026-09-16T09:00:00.000Z"),
+            endsAt: new Date("2026-09-16T10:00:00.000Z"),
+            reason: "Interruption annoncée",
+          },
+          {
+            dutyPeriodId: duty.id,
+            kind: "CANCELLED",
+            startsAt: new Date("2026-09-16T16:00:00.000Z"),
+            endsAt: new Date("2026-09-16T17:00:00.000Z"),
+            reason: "Fermeture partielle",
+          },
+        ],
+      });
+      const path = `/api/v1/admin/duties/${duty.id}/full-cancellation`;
+      const before = await app.inject({
+        method: "GET",
+        url: `/api/v1/pharmacies/${ids.alpha}`,
+      });
+      expect(
+        responseData<{ currentDuty?: unknown }>(before).currentDuty,
+      ).toBeDefined();
+
+      const unauthenticated = await app.inject({ method: "POST", url: path });
+      expect(unauthenticated.statusCode).toBe(401);
+      const forbidden = await app.inject({
+        method: "POST",
+        url: path,
+        headers: { cookie, origin: "https://foreign.example" },
+        payload: {},
+      });
+      expect(forbidden.statusCode).toBe(403);
+      const invalid = await app.inject({
+        method: "POST",
+        url: path,
+        headers: mutationHeaders(cookie),
+        payload: { kind: "CANCELLED" },
+      });
+      expect(invalid.statusCode).toBe(400);
+
+      const [first, second] = await Promise.all([
+        app.inject({
+          method: "POST",
+          url: path,
+          headers: mutationHeaders(cookie),
+          payload: { reason: "Fermeture complète confirmée" },
+        }),
+        app.inject({
+          method: "POST",
+          url: path,
+          headers: mutationHeaders(cookie),
+          payload: { reason: "Nouvelle tentative" },
+        }),
+      ]);
+      expect([first.statusCode, second.statusCode].sort()).toEqual([200, 201]);
+      const markerId = responseData<{ id: string }>(first).id;
+      expect(responseData<{ id: string }>(second).id).toBe(markerId);
+      const rows = await prisma.dutyException.findMany({
+        where: { dutyPeriodId: duty.id },
+        orderBy: { startsAt: "asc" },
+      });
+      expect(rows).toHaveLength(3);
+      expect(rows.map((row) => row.reason)).toContain("Interruption annoncée");
+      expect(rows.map((row) => row.reason)).toContain("Fermeture partielle");
+      const marker = rows.find((row) => row.id === markerId);
+      expect(marker).toMatchObject({ kind: "CANCELLED" });
+      expect(marker?.startsAt.toISOString()).toBe(START);
+      expect(marker?.endsAt.toISOString()).toBe(END);
+      expect(
+        (await prisma.dutyPeriod.findUniqueOrThrow({ where: { id: duty.id } }))
+          .status,
+      ).toBe("APPROVED");
+
+      const after = await app.inject({
+        method: "GET",
+        url: `/api/v1/pharmacies/${ids.alpha}`,
+      });
+      expect(
+        responseData<{ currentDuty?: unknown }>(after).currentDuty,
+      ).toBeUndefined();
+      const listed = await app.inject({
+        method: "GET",
+        url: "/api/v1/pharmacies",
+      });
+      expect(responseData<Array<{ id: string }>>(listed)).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: ids.alpha })]),
+      );
+      const summary = await app.inject({
+        method: "GET",
+        url: "/api/v1/admin/duties/summary",
+        headers: { cookie },
+      });
+      expect(summary.json()).toMatchObject({ data: { active: 0 } });
+      const overview = await app.inject({
+        method: "GET",
+        url: "/api/v1/admin/analytics/overview",
+        headers: { cookie },
+      });
+      expect(overview.json()).toMatchObject({
+        data: { quality: { currentDutyPeriodsAfterExceptions: 0 } },
+      });
+      const quality = await app.inject({
+        method: "GET",
+        url: "/api/v1/admin/analytics/quality",
+        headers: { cookie },
+      });
+      expect(quality.json()).toMatchObject({
+        data: {
+          sources: { totals: { currentDutyPeriodsAfterExceptions: 0 } },
+        },
+      });
+      const ordinary = await app.inject({
+        method: "POST",
+        url: `/api/v1/admin/duties/${duty.id}/exceptions`,
+        headers: mutationHeaders(cookie),
+        payload: {
+          kind: "UNAVAILABLE",
+          startsAt: "2026-09-16T11:00:00.000Z",
+          endsAt: "2026-09-16T13:00:00.000Z",
+        },
+      });
+      expect(ordinary.statusCode).toBe(409);
+      for (const exceptionId of [
+        markerId,
+        rows.find((row) => row.id !== markerId)!.id,
+      ]) {
+        const patch = await app.inject({
+          method: "PATCH",
+          url: `/api/v1/admin/duties/${duty.id}/exceptions/${exceptionId}`,
+          headers: mutationHeaders(cookie),
+          payload: { reason: "Tentative tardive" },
+        });
+        expect(patch.statusCode).toBe(409);
+      }
+      const pending = await prisma.dutyPeriod.create({
+        data: {
+          pharmacyId: ids.bravo,
+          startsAt: new Date(START),
+          endsAt: new Date(END),
+          status: "PENDING",
+        },
+      });
+      const pendingResponse = await app.inject({
+        method: "POST",
+        url: `/api/v1/admin/duties/${pending.id}/full-cancellation`,
+        headers: mutationHeaders(cookie),
+        payload: {},
+      });
+      expect(pendingResponse.statusCode).toBe(409);
+      const missing = await app.inject({
+        method: "POST",
+        url: `/api/v1/admin/duties/${ids.missing}/full-cancellation`,
+        headers: mutationHeaders(cookie),
+        payload: {},
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+
     it("enforces session, Origin, malformed/foreign IDs, and stable error envelopes", async () => {
       for (const url of [
         "/api/v1/admin/sources",

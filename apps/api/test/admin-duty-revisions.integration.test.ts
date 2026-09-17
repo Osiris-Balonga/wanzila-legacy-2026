@@ -504,6 +504,35 @@ describe.runIf(Boolean(databaseUrl))(
       );
     });
 
+    it("does not let a pending revision extend a duty after full cancellation", async () => {
+      const duty = await approvedDuty();
+      const revisionId = data<{ id: string }>(await submit(duty.id)).id;
+      const cancelled = await app.inject({
+        method: "POST",
+        url: `/api/v1/admin/duties/${duty.id}/full-cancellation`,
+        headers: headers(),
+        payload: {},
+      });
+      expect(cancelled.statusCode).toBe(201);
+      const approval = await review(duty.id, revisionId, "approve");
+      expect(approval.statusCode).toBe(409);
+      const persisted = await prisma.dutyPeriod.findUniqueOrThrow({
+        where: { id: duty.id },
+        include: { exceptions: true },
+      });
+      expect(persisted.startsAt.toISOString()).toBe(START);
+      expect(persisted.endsAt.toISOString()).toBe(END);
+      expect(persisted.exceptions).toHaveLength(1);
+      expect(persisted.exceptions[0]?.kind).toBe("CANCELLED");
+      const publicList = await app.inject({
+        method: "GET",
+        url: "/api/v1/pharmacies",
+      });
+      expect(data<Array<{ id: string }>>(publicList)).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: ids.pharmacy })]),
+      );
+    });
+
     it("rejects a newly overlapping duty or deleted proposed source without partial writes", async () => {
       const duty = await approvedDuty();
       const revisionId = data<{ id: string }>(await submit(duty.id)).id;

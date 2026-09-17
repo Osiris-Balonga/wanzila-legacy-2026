@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DutyAuthNotice } from "./DutyAuthNotice";
 import {
   DutyHttpError,
+  cancelFullDuty,
   isDutyAuthError,
   listExceptions,
   loadDuty,
@@ -80,6 +81,17 @@ function fieldsForException(exception: AdminDutyException): Fields {
     endTime: end.time,
     reason: exception.reason ?? "",
   };
+}
+
+function isFullCancellation(
+  duty: AdminDuty,
+  exception: AdminDutyException,
+): boolean {
+  return (
+    exception.kind === "CANCELLED" &&
+    exception.startsAt === duty.startsAt &&
+    exception.endsAt === duty.endsAt
+  );
 }
 
 function failureKind(error: unknown): LoadState {
@@ -207,12 +219,7 @@ export function AdminDutyExceptions({ id }: { id: string }) {
     setError("");
     setFeedback("");
     try {
-      await saveException(id, {
-        kind: "CANCELLED",
-        startsAt: state.duty.startsAt,
-        endsAt: state.duty.endsAt,
-        reason: "Garde annulée par l’administration",
-      });
+      await cancelFullDuty(id);
       setConfirmCancel(false);
       setFeedback(
         "Annulation enregistrée pour toute la période. La garde n’apparaîtra plus comme active.",
@@ -225,7 +232,7 @@ export function AdminDutyExceptions({ id }: { id: string }) {
         setState({ kind: "forbidden" });
       else if (failure instanceof DutyHttpError && failure.status === 409) {
         setError(
-          "Annulation impossible : une exception existe déjà sur cette période ou la garde a changé. Vérifiez les données rechargées.",
+          "Annulation impossible : la garde a changé ou n’est plus approuvée. Vérifiez les données rechargées.",
         );
         refresh();
       } else setError("L’annulation n’a pas pu être enregistrée.");
@@ -235,6 +242,9 @@ export function AdminDutyExceptions({ id }: { id: string }) {
   }
 
   const ready = state.kind === "ready" ? state : null;
+  const fullyCancelled = ready?.exceptions.some((exception) =>
+    isFullCancellation(ready.duty, exception),
+  );
   return (
     <div className="admin-duty admin-duty-operations">
       <a className="admin-duty__back" href="/admin/gardes">
@@ -289,8 +299,7 @@ export function AdminDutyExceptions({ id }: { id: string }) {
                   : "Non approuvée"}
               </p>
             </div>
-            {ready.duty.status === "APPROVED" &&
-            ready.exceptions.length === 0 ? (
+            {ready.duty.status === "APPROVED" && !fullyCancelled ? (
               <Button
                 disabled={busy}
                 onClick={() => setConfirmCancel(true)}
@@ -301,12 +310,11 @@ export function AdminDutyExceptions({ id }: { id: string }) {
               </Button>
             ) : null}
           </section>
-          {ready.duty.status === "APPROVED" && ready.exceptions.length > 0 ? (
+          {fullyCancelled ? (
             <Alert role="note">
               <AlertDescription>
-                Une exception existe déjà. L’annulation de toute la garde ne
-                peut pas chevaucher une exception enregistrée. Modifiez les
-                exceptions existantes selon la situation.
+                Garde entièrement annulée. Les exceptions antérieures restent
+                dans l’historique et ne peuvent plus être modifiées.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -320,7 +328,9 @@ export function AdminDutyExceptions({ id }: { id: string }) {
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="admin-duty-operations__grid">
+            <div
+              className={`admin-duty-operations__grid${fullyCancelled ? " admin-duty-operations__grid--single" : ""}`}
+            >
               <section
                 aria-label="Liste des exceptions"
                 className="admin-duty__list-panel"
@@ -332,9 +342,11 @@ export function AdminDutyExceptions({ id }: { id: string }) {
                       <li key={exception.id}>
                         <div>
                           <strong>
-                            {exception.kind === "CANCELLED"
-                              ? "Annulation"
-                              : "Indisponibilité"}
+                            {isFullCancellation(ready.duty, exception)
+                              ? "Annulation complète"
+                              : exception.kind === "CANCELLED"
+                                ? "Annulation"
+                                : "Indisponibilité"}
                           </strong>
                           <span>
                             Du {dateLabel(exception.startsAt)} au{" "}
@@ -344,14 +356,16 @@ export function AdminDutyExceptions({ id }: { id: string }) {
                             <span>{exception.reason}</span>
                           ) : null}
                         </div>
-                        <Button
-                          aria-label={`Modifier l’exception du ${dateLabel(exception.startsAt)}`}
-                          onClick={() => edit(exception)}
-                          type="button"
-                          variant="outline"
-                        >
-                          Modifier
-                        </Button>
+                        {!fullyCancelled ? (
+                          <Button
+                            aria-label={`Modifier l’exception du ${dateLabel(exception.startsAt)}`}
+                            onClick={() => edit(exception)}
+                            type="button"
+                            variant="outline"
+                          >
+                            Modifier
+                          </Button>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -359,155 +373,159 @@ export function AdminDutyExceptions({ id }: { id: string }) {
                   <p>Aucune exception enregistrée.</p>
                 )}
               </section>
-              <section
-                aria-label="Formulaire d’exception"
-                className="admin-duty__form-panel"
-              >
-                <h2>
-                  {editingId
-                    ? "Modifier une exception"
-                    : "Ajouter une exception"}
-                </h2>
-                <p>
-                  Une exception peut couvrir tout ou partie de la garde. Les
-                  périodes ne peuvent pas se chevaucher.
-                </p>
-                {fields ? (
-                  <form
-                    className="admin-duty-operations__form"
-                    noValidate
-                    onSubmit={(event) => void submit(event)}
-                  >
-                    <div className="admin-duty__field">
-                      <Label htmlFor="duty-exception-kind">Nature</Label>
-                      <Select
-                        onValueChange={(value) =>
-                          setFields({
-                            ...fields,
-                            kind: value as Fields["kind"],
-                          })
-                        }
-                        value={fields.kind}
-                      >
-                        <SelectTrigger id="duty-exception-kind">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="UNAVAILABLE">
-                            Indisponibilité
-                          </SelectItem>
-                          <SelectItem value="CANCELLED">Annulation</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="admin-duty-operations__dates">
+              {!fullyCancelled ? (
+                <section
+                  aria-label="Formulaire d’exception"
+                  className="admin-duty__form-panel"
+                >
+                  <h2>
+                    {editingId
+                      ? "Modifier une exception"
+                      : "Ajouter une exception"}
+                  </h2>
+                  <p>
+                    Une exception peut couvrir tout ou partie de la garde. Les
+                    périodes ne peuvent pas se chevaucher.
+                  </p>
+                  {fields ? (
+                    <form
+                      className="admin-duty-operations__form"
+                      noValidate
+                      onSubmit={(event) => void submit(event)}
+                    >
                       <div className="admin-duty__field">
-                        <Label htmlFor="duty-exception-start-date">
-                          Date de début
-                        </Label>
-                        <Input
-                          id="duty-exception-start-date"
-                          onChange={(event) =>
+                        <Label htmlFor="duty-exception-kind">Nature</Label>
+                        <Select
+                          onValueChange={(value) =>
                             setFields({
                               ...fields,
-                              startDate: event.target.value,
+                              kind: value as Fields["kind"],
                             })
                           }
-                          required
-                          type="date"
-                          value={fields.startDate}
-                        />
-                      </div>
-                      <div className="admin-duty__field">
-                        <Label htmlFor="duty-exception-start-time">
-                          Heure de début
-                        </Label>
-                        <Input
-                          id="duty-exception-start-time"
-                          onChange={(event) =>
-                            setFields({
-                              ...fields,
-                              startTime: event.target.value,
-                            })
-                          }
-                          required
-                          type="time"
-                          value={fields.startTime}
-                        />
-                      </div>
-                      <div className="admin-duty__field">
-                        <Label htmlFor="duty-exception-end-date">
-                          Date de fin
-                        </Label>
-                        <Input
-                          id="duty-exception-end-date"
-                          onChange={(event) =>
-                            setFields({
-                              ...fields,
-                              endDate: event.target.value,
-                            })
-                          }
-                          required
-                          type="date"
-                          value={fields.endDate}
-                        />
-                      </div>
-                      <div className="admin-duty__field">
-                        <Label htmlFor="duty-exception-end-time">
-                          Heure de fin
-                        </Label>
-                        <Input
-                          id="duty-exception-end-time"
-                          onChange={(event) =>
-                            setFields({
-                              ...fields,
-                              endTime: event.target.value,
-                            })
-                          }
-                          required
-                          type="time"
-                          value={fields.endTime}
-                        />
-                      </div>
-                    </div>
-                    <div className="admin-duty__field">
-                      <Label htmlFor="duty-exception-reason">
-                        Motif facultatif
-                      </Label>
-                      <Textarea
-                        id="duty-exception-reason"
-                        maxLength={255}
-                        onChange={(event) =>
-                          setFields({ ...fields, reason: event.target.value })
-                        }
-                        value={fields.reason}
-                      />
-                    </div>
-                    <div className="admin-duty-operations__actions">
-                      {editingId ? (
-                        <Button
-                          onClick={() => resetForm(ready.duty)}
-                          type="button"
-                          variant="outline"
+                          value={fields.kind}
                         >
-                          Annuler
+                          <SelectTrigger id="duty-exception-kind">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="UNAVAILABLE">
+                              Indisponibilité
+                            </SelectItem>
+                            <SelectItem value="CANCELLED">
+                              Annulation
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="admin-duty-operations__dates">
+                        <div className="admin-duty__field">
+                          <Label htmlFor="duty-exception-start-date">
+                            Date de début
+                          </Label>
+                          <Input
+                            id="duty-exception-start-date"
+                            onChange={(event) =>
+                              setFields({
+                                ...fields,
+                                startDate: event.target.value,
+                              })
+                            }
+                            required
+                            type="date"
+                            value={fields.startDate}
+                          />
+                        </div>
+                        <div className="admin-duty__field">
+                          <Label htmlFor="duty-exception-start-time">
+                            Heure de début
+                          </Label>
+                          <Input
+                            id="duty-exception-start-time"
+                            onChange={(event) =>
+                              setFields({
+                                ...fields,
+                                startTime: event.target.value,
+                              })
+                            }
+                            required
+                            type="time"
+                            value={fields.startTime}
+                          />
+                        </div>
+                        <div className="admin-duty__field">
+                          <Label htmlFor="duty-exception-end-date">
+                            Date de fin
+                          </Label>
+                          <Input
+                            id="duty-exception-end-date"
+                            onChange={(event) =>
+                              setFields({
+                                ...fields,
+                                endDate: event.target.value,
+                              })
+                            }
+                            required
+                            type="date"
+                            value={fields.endDate}
+                          />
+                        </div>
+                        <div className="admin-duty__field">
+                          <Label htmlFor="duty-exception-end-time">
+                            Heure de fin
+                          </Label>
+                          <Input
+                            id="duty-exception-end-time"
+                            onChange={(event) =>
+                              setFields({
+                                ...fields,
+                                endTime: event.target.value,
+                              })
+                            }
+                            required
+                            type="time"
+                            value={fields.endTime}
+                          />
+                        </div>
+                      </div>
+                      <div className="admin-duty__field">
+                        <Label htmlFor="duty-exception-reason">
+                          Motif facultatif
+                        </Label>
+                        <Textarea
+                          id="duty-exception-reason"
+                          maxLength={255}
+                          onChange={(event) =>
+                            setFields({ ...fields, reason: event.target.value })
+                          }
+                          value={fields.reason}
+                        />
+                      </div>
+                      <div className="admin-duty-operations__actions">
+                        {editingId ? (
+                          <Button
+                            onClick={() => resetForm(ready.duty)}
+                            type="button"
+                            variant="outline"
+                          >
+                            Annuler
+                          </Button>
+                        ) : null}
+                        <Button
+                          className="admin-duty__primary-action"
+                          disabled={busy}
+                          type="submit"
+                        >
+                          {busy
+                            ? "Enregistrement…"
+                            : editingId
+                              ? "Enregistrer l’exception"
+                              : "Ajouter l’exception"}
                         </Button>
-                      ) : null}
-                      <Button
-                        className="admin-duty__primary-action"
-                        disabled={busy}
-                        type="submit"
-                      >
-                        {busy
-                          ? "Enregistrement…"
-                          : editingId
-                            ? "Enregistrer l’exception"
-                            : "Ajouter l’exception"}
-                      </Button>
-                    </div>
-                  </form>
-                ) : null}
-              </section>
+                      </div>
+                    </form>
+                  ) : null}
+                </section>
+              ) : null}
             </div>
           )}
         </>
@@ -518,7 +536,8 @@ export function AdminDutyExceptions({ id }: { id: string }) {
             <AlertDialogTitle>Annuler toute cette garde ?</AlertDialogTitle>
             <AlertDialogDescription>
               Une exception d’annulation couvrira toute la période approuvée.
-              Cette opération modifie la disponibilité publique.
+              Les exceptions antérieures resteront dans l’historique. Cette
+              opération modifie la disponibilité publique.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

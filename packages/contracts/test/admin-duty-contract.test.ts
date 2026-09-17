@@ -18,6 +18,18 @@ const start = "2026-09-16T08:00:00.000Z";
 const end = "2026-09-16T20:00:00.000Z";
 
 describe("admin duty/source/exception Zod contract (RED #48)", () => {
+  it("accepts only an optional audit reason for full cancellation", () => {
+    const fullCancellation = schema("fullAdminDutyCancellationRequestSchema");
+    expect(fullCancellation.parse({})).toEqual({});
+    expect(fullCancellation.parse({ reason: "Garde annulée" })).toEqual({
+      reason: "Garde annulée",
+    });
+    expect(fullCancellation.safeParse({ reason: " " }).success).toBe(false);
+    expect(fullCancellation.safeParse({ kind: "CANCELLED" }).success).toBe(
+      false,
+    );
+  });
+
   it("validates sources and reports truthful freshness separately from updatedAt", () => {
     const create = schema("createAdminScheduleSourceRequestSchema");
     const update = schema("updateAdminScheduleSourceRequestSchema");

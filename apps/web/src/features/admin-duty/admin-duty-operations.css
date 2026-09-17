@@ -13,6 +13,10 @@
   grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 1fr);
 }
 
+.admin-duty-operations__grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .admin-duty-operations__grid h2,
 .admin-duty-operations__context h2 {
   font-size: 1.1rem;
