@@ -105,6 +105,21 @@ test("save from the selected map and remove with keyboard/undo after reload", as
   ).toBe(JSON.stringify([jagger]));
 });
 
+test("save from the public pharmacy detail links back to the saved list", async ({
+  page,
+}) => {
+  await page.goto(`/pharmacies/${jagger}`);
+  await expect(
+    page.getByRole("heading", { name: "Pharmacie de nuit Jagger" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(
+    page.getByRole("button", { name: "Retirer des enregistrées" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Enregistrées" }).click();
+  await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
+});
+
 test("saved page is responsive, has real MapLibre, and links to detail/route", async ({
   page,
 }) => {

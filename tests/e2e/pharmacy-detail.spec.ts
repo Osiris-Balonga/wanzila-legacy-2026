@@ -87,13 +87,11 @@ test("detail-to-call is explicit, keyboard reachable and tracked", async ({
     "href",
     `/pharmacies/${id}/itineraire`,
   );
-  await expect(
-    page.getByRole("button", { name: "Enregistrer" }),
-  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
   await expect(
     page.getByRole("button", { name: "Signaler un problème" }),
   ).toBeDisabled();
-  await expect(page.getByText(/bientôt disponibles/)).toBeVisible();
+  await expect(page.getByText(/Signalement bientôt disponible/)).toBeVisible();
   expect(events.map((event) => event.name)).toContain("pharmacy_detail_viewed");
   expect(events.map((event) => event.name)).not.toContain(
     "pharmacy_call_started",
