@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  pharmacyPhotoSchema,
+  pharmacyRecordProvenanceSchema,
+} from "./public-api.js";
 
 const identifierSchema = z.uuid();
 const textSchema = z.string().trim().min(1);
@@ -38,6 +42,8 @@ export const adminPharmacySchema = z
     status: adminPharmacyStatusSchema,
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
+    photo: pharmacyPhotoSchema.optional(),
+    recordProvenance: pharmacyRecordProvenanceSchema.optional(),
   })
   .strict();
 
@@ -62,12 +68,17 @@ export const createAdminPharmacyRequestSchema = z
     address: adminPharmacyAddressSchema,
     phone: phoneSchema.optional(),
     coordinates: adminPharmacyCoordinatesSchema,
+    recordProvenance: pharmacyRecordProvenanceSchema.optional(),
   })
   .strict();
 
 export const updateAdminPharmacyRequestSchema = createAdminPharmacyRequestSchema
   .partial()
-  .extend({ phone: phoneSchema.nullable().optional() })
+  .extend({
+    phone: phoneSchema.nullable().optional(),
+    photo: pharmacyPhotoSchema.nullable().optional(),
+    recordProvenance: pharmacyRecordProvenanceSchema.nullable().optional(),
+  })
   .refine(
     (value) => Object.keys(value).length > 0,
     "At least one pharmacy field is required.",

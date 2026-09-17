@@ -21,6 +21,11 @@ import {
   createAdministratorAuthorizationPreHandler,
   createAllowedOriginPreHandler,
 } from "../admin-auth/authorization.js";
+import {
+  approvedPhoto,
+  serializedPhoto,
+  serializedRecordProvenance,
+} from "../shared/pharmacy-photo-registry.js";
 
 const pharmacySelect = {
   id: true,
@@ -31,6 +36,13 @@ const pharmacySelect = {
   arrondissement: true,
   latitude: true,
   longitude: true,
+  recordSource: true,
+  recordVerifiedAt: true,
+  photoAssetPath: true,
+  photoSource: true,
+  photoCredit: true,
+  photoRights: true,
+  photoVerifiedAt: true,
   status: true,
   createdAt: true,
   updatedAt: true,
@@ -47,6 +59,8 @@ export interface AdminPharmacyRouteOptions {
 }
 
 function serialize(pharmacy: PharmacyRecord): AdminPharmacy {
+  const photo = serializedPhoto(pharmacy);
+  const recordProvenance = serializedRecordProvenance(pharmacy);
   return {
     id: pharmacy.id,
     name: pharmacy.name,
@@ -63,6 +77,8 @@ function serialize(pharmacy: PharmacyRecord): AdminPharmacy {
     status: pharmacy.status,
     createdAt: pharmacy.createdAt.toISOString(),
     updatedAt: pharmacy.updatedAt.toISOString(),
+    ...(photo ? { photo } : {}),
+    ...(recordProvenance ? { recordProvenance } : {}),
   };
 }
 
@@ -155,6 +171,12 @@ export function registerAdminPharmacyRoutes(
     async (request, reply): Promise<AdminPharmacyResponse | void> => {
       const input = createAdminPharmacyRequestSchema.safeParse(request.body);
       if (!input.success) return sendBadRequest(reply);
+      if (
+        input.data.recordProvenance &&
+        Date.parse(input.data.recordProvenance.verifiedAt) >
+          options.now().getTime()
+      )
+        return sendBadRequest(reply);
       const inputKey = duplicateKey(input.data);
       const candidates = await options.prisma.pharmacy.findMany({
         select: {
@@ -187,6 +209,14 @@ export function registerAdminPharmacyRoutes(
           latitude: input.data.coordinates.latitude,
           longitude: input.data.coordinates.longitude,
           status: "DRAFT",
+          ...(input.data.recordProvenance
+            ? {
+                recordSource: input.data.recordProvenance.source,
+                recordVerifiedAt: new Date(
+                  input.data.recordProvenance.verifiedAt,
+                ),
+              }
+            : {}),
         },
         select: pharmacySelect,
       });
@@ -201,6 +231,14 @@ export function registerAdminPharmacyRoutes(
       const params = adminPharmacyPathParamsSchema.safeParse(request.params);
       const input = updateAdminPharmacyRequestSchema.safeParse(request.body);
       if (!params.success || !input.success) return sendBadRequest(reply);
+      if (
+        (input.data.photo &&
+          !approvedPhoto(input.data.photo, params.data.id)) ||
+        (input.data.recordProvenance &&
+          Date.parse(input.data.recordProvenance.verifiedAt) >
+            options.now().getTime())
+      )
+        return sendBadRequest(reply);
       const existing = await findPharmacy(options.prisma, params.data.id);
       if (!existing) return sendNotFound(reply);
       const updated = await options.prisma.pharmacy.update({
@@ -223,6 +261,33 @@ export function registerAdminPharmacyRoutes(
                 longitude: input.data.coordinates.longitude,
               }
             : {}),
+          ...(input.data.recordProvenance === undefined
+            ? {}
+            : input.data.recordProvenance === null
+              ? { recordSource: null, recordVerifiedAt: null }
+              : {
+                  recordSource: input.data.recordProvenance.source,
+                  recordVerifiedAt: new Date(
+                    input.data.recordProvenance.verifiedAt,
+                  ),
+                }),
+          ...(input.data.photo === undefined
+            ? {}
+            : input.data.photo === null
+              ? {
+                  photoAssetPath: null,
+                  photoSource: null,
+                  photoCredit: null,
+                  photoRights: null,
+                  photoVerifiedAt: null,
+                }
+              : {
+                  photoAssetPath: input.data.photo.assetPath,
+                  photoSource: input.data.photo.source,
+                  photoCredit: input.data.photo.credit,
+                  photoRights: input.data.photo.rights,
+                  photoVerifiedAt: new Date(input.data.photo.verifiedAt),
+                }),
         },
         select: pharmacySelect,
       });

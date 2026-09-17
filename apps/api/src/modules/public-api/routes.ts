@@ -18,6 +18,10 @@ import type { FastifyInstance } from "fastify";
 import { Prisma } from "../../generated/prisma/client.js";
 import type { ApiPrismaClient } from "../../infrastructure/prisma.js";
 import { sendBadRequest, sendNotFound } from "../shared/http-errors.js";
+import {
+  serializedPhoto,
+  serializedRecordProvenance,
+} from "../shared/pharmacy-photo-registry.js";
 
 const pharmacySelect = {
   id: true,
@@ -28,6 +32,13 @@ const pharmacySelect = {
   arrondissement: true,
   latitude: true,
   longitude: true,
+  recordSource: true,
+  recordVerifiedAt: true,
+  photoAssetPath: true,
+  photoSource: true,
+  photoCredit: true,
+  photoRights: true,
+  photoVerifiedAt: true,
   duties: {
     orderBy: [{ startsAt: "asc" }, { id: "asc" }],
     select: {
@@ -123,6 +134,11 @@ function serializePharmacy(
   if (currentDuty) {
     result.currentDuty = currentDuty;
   }
+
+  const photo = serializedPhoto(pharmacy);
+  if (photo) result.photo = photo;
+  const recordProvenance = serializedRecordProvenance(pharmacy);
+  if (recordProvenance) result.recordProvenance = recordProvenance;
 
   return result;
 }
