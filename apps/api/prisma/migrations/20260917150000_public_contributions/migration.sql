@@ -30,4 +30,4 @@ CREATE TABLE `ContributionCorrection` (
   UNIQUE INDEX `ContributionCorrection_contributionId_version_key` (`contributionId`, `version`),
   CONSTRAINT `ContributionCorrection_contributionId_fkey` FOREIGN KEY (`contributionId`) REFERENCES `Contribution`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `ContributionCorrection_correctedById_fkey` FOREIGN KEY (`correctedById`) REFERENCES `AdminUser`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-);
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
