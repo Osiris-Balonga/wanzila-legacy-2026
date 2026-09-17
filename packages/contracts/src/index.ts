@@ -12,6 +12,7 @@ export * from "./analytics.js";
 export * from "./admin-auth.js";
 export * from "./admin-pharmacy.js";
 export * from "./admin-duty.js";
+export * from "./admin-duty-revision.js";
 export * from "./admin-analytics.js";
 export * from "./admin-analytics-quality.js";
 export * from "./admin-analytics-activity.js";
