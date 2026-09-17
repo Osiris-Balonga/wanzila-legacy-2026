@@ -35,6 +35,11 @@ export function PharmacyRoadDistance({
     [],
   );
 
+  useEffect(() => {
+    requestVersion.current += 1;
+    setState({ status: "idle" });
+  }, [pharmacy.id]);
+
   function calculate() {
     const version = ++requestVersion.current;
     if (!navigator.geolocation) {
