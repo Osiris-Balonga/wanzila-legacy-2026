@@ -5,6 +5,11 @@ type Point = { latitude: number; longitude: number };
 type ArrivalDomain = {
   straightLineDistanceMeters: (from: Point, to: Point) => number | null;
   isWithinArrivalRadius: (distance: number | null, radius?: number) => boolean;
+  isArrivalCertain: (
+    distance: number | null,
+    accuracy: number,
+    radius?: number,
+  ) => boolean;
 };
 
 async function subject(): Promise<ArrivalDomain> {
@@ -49,5 +54,24 @@ describe("arrival distance domain", () => {
     expect(isWithinArrivalRadius(Number.NaN)).toBe(false);
     expect(isWithinArrivalRadius(-1)).toBe(false);
     expect(isWithinArrivalRadius(0, 0)).toBe(false);
+  });
+
+  it("requires the whole accuracy circle to fit within the inclusive arrival radius", async () => {
+    const { isArrivalCertain } = await subject();
+    expect(isArrivalCertain(0, 1000)).toBe(false);
+    expect(isArrivalCertain(0, 50)).toBe(true);
+    expect(isArrivalCertain(40, 10)).toBe(true);
+    expect(isArrivalCertain(40, 10.001)).toBe(false);
+    expect(isArrivalCertain(60, 15, 75)).toBe(true);
+    expect(isArrivalCertain(0, 0)).toBe(true);
+  });
+
+  it("never confirms an arrival with missing, negative or nonfinite accuracy", async () => {
+    const { isArrivalCertain } = await subject();
+    expect(isArrivalCertain(0, Number.NaN)).toBe(false);
+    expect(isArrivalCertain(0, Number.POSITIVE_INFINITY)).toBe(false);
+    expect(isArrivalCertain(0, -1)).toBe(false);
+    expect(isArrivalCertain(0, undefined as unknown as number)).toBe(false);
+    expect(isArrivalCertain(null, 1)).toBe(false);
   });
 });

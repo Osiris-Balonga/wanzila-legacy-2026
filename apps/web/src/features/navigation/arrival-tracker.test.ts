@@ -4,9 +4,9 @@ const modulePath = "./arrival-tracker.js";
 type Point = { latitude: number; longitude: number };
 type State =
   | { status: "idle" | "requesting" | "cancelled" | "arrived" }
-  | { status: "active"; distanceMeters: number }
+  | { status: "active"; distanceMeters: number; arrivalUncertain?: boolean }
   | { status: "denied" | "timeout" | "unavailable" | "unsupported" };
-type Position = { coords: Point };
+type Position = { coords: Point & { accuracy: number } };
 type Geo = {
   watchPosition: (
     success: (position: Position) => void,
@@ -22,6 +22,7 @@ type TrackerModule = {
     radiusMeters?: number;
     onState: (state: State) => void;
     onPosition?: (position: Point | null) => void;
+    onStart?: () => void;
     onArrival?: () => void;
   }) => Tracker;
 };
@@ -52,6 +53,9 @@ function createGeo() {
 }
 
 const destination = { latitude: -4.2636, longitude: 15.2429 };
+const fix = (point: Point, accuracy = 5): Position => ({
+  coords: { ...point, accuracy },
+});
 
 describe("explicit arrival watch lifecycle", () => {
   it("does not watch before start, reports only derived distance, and arrives once", async () => {
@@ -69,16 +73,14 @@ describe("explicit arrival watch lifecycle", () => {
     tracker.start();
     expect(states.at(-1)).toEqual({ status: "requesting" });
     expect(geo.watchPosition).toHaveBeenCalledTimes(1);
-    callbacks.success?.({
-      coords: { latitude: -4.2646, longitude: 15.2429 },
-    });
+    callbacks.success?.(fix({ latitude: -4.2646, longitude: 15.2429 }));
     expect(states.at(-1)?.status).toBe("active");
     expect(states.at(-1)).not.toHaveProperty("coordinates");
-    callbacks.success?.({ coords: destination });
+    callbacks.success?.(fix(destination));
     expect(states.at(-1)).toEqual({ status: "arrived" });
     expect(geo.clearWatch).toHaveBeenCalledExactlyOnceWith(7);
     expect(positions.at(-1)).toBeNull();
-    callbacks.success?.({ coords: destination });
+    callbacks.success?.(fix(destination));
     expect(states.filter((state) => state.status === "arrived")).toHaveLength(
       1,
     );
@@ -133,9 +135,7 @@ describe("explicit arrival watch lifecycle", () => {
       destination,
       onState: (state) => states.push(state),
     }).start();
-    callbacks.success?.({
-      coords: { latitude: Number.NaN, longitude: 15 },
-    });
+    callbacks.success?.(fix({ latitude: Number.NaN, longitude: 15 }));
     expect(states.at(-1)).toEqual({ status: "unavailable" });
     expect(geo.clearWatch).toHaveBeenCalledExactlyOnceWith(7);
   });
@@ -153,14 +153,14 @@ describe("explicit arrival watch lifecycle", () => {
     tracker.cancel();
     expect(states.at(-1)).toEqual({ status: "cancelled" });
     expect(geo.clearWatch).toHaveBeenCalledExactlyOnceWith(7);
-    callbacks.success?.({ coords: destination });
+    callbacks.success?.(fix(destination));
     expect(states.at(-1)).toEqual({ status: "cancelled" });
     tracker.start();
     expect(geo.watchPosition).toHaveBeenCalledTimes(2);
     tracker.dispose();
     expect(geo.clearWatch).toHaveBeenCalledTimes(2);
     const stateCount = states.length;
-    callbacks.success?.({ coords: destination });
+    callbacks.success?.(fix(destination));
     expect(states).toHaveLength(stateCount);
   });
 
@@ -176,15 +176,94 @@ describe("explicit arrival watch lifecycle", () => {
       onArrival,
     });
     tracker.start();
-    callbacks.success?.({
-      coords: { latitude: -4.2646, longitude: 15.2429 },
-    });
+    callbacks.success?.(fix({ latitude: -4.2646, longitude: 15.2429 }));
     expect(onArrival).not.toHaveBeenCalled();
-    callbacks.success?.({
-      coords: { latitude: -4.26415, longitude: 15.2429 },
-    });
-    callbacks.success?.({ coords: destination });
+    callbacks.success?.(fix({ latitude: -4.26415, longitude: 15.2429 }));
+    callbacks.success?.(fix(destination));
     expect(onArrival).toHaveBeenCalledTimes(1);
     tracker.dispose();
+  });
+
+  it("keeps watching a centered but imprecise fix, then confirms one sufficiently precise fix", async () => {
+    const { createArrivalTracker } = await subject();
+    const { geo, callbacks } = createGeo();
+    const states: State[] = [];
+    const onArrival = vi.fn();
+    createArrivalTracker({
+      geolocation: geo,
+      destination,
+      onState: (state) => states.push(state),
+      onArrival,
+    }).start();
+    callbacks.success?.(fix(destination, 1000));
+    expect(states.at(-1)).toMatchObject({
+      status: "active",
+      arrivalUncertain: true,
+    });
+    expect(onArrival).not.toHaveBeenCalled();
+    expect(geo.clearWatch).not.toHaveBeenCalled();
+    callbacks.success?.(fix(destination, 50));
+    expect(states.at(-1)).toEqual({ status: "arrived" });
+    expect(onArrival).toHaveBeenCalledTimes(1);
+    expect(geo.clearWatch).toHaveBeenCalledExactlyOnceWith(7);
+  });
+
+  it("fails closed on invalid accuracy without stopping the watcher", async () => {
+    const { createArrivalTracker } = await subject();
+    const { geo, callbacks } = createGeo();
+    const states: State[] = [];
+    const onArrival = vi.fn();
+    createArrivalTracker({
+      geolocation: geo,
+      destination,
+      onState: (state) => states.push(state),
+      onArrival,
+    }).start();
+    for (const accuracy of [Number.NaN, -1, Number.POSITIVE_INFINITY]) {
+      callbacks.success?.(fix(destination, accuracy));
+      expect(states.at(-1)).toMatchObject({
+        status: "active",
+        arrivalUncertain: true,
+      });
+      expect(onArrival).not.toHaveBeenCalled();
+      expect(geo.clearWatch).not.toHaveBeenCalled();
+    }
+  });
+
+  it("emits start before a synchronous arrival and never starts without API support", async () => {
+    const { createArrivalTracker } = await subject();
+    const events: string[] = [];
+    const clearWatch = vi.fn();
+    const tracker = createArrivalTracker({
+      geolocation: {
+        watchPosition(success) {
+          success(fix(destination));
+          return 7;
+        },
+        clearWatch,
+      },
+      destination,
+      onState: vi.fn(),
+      onStart: () => events.push("route_started"),
+      onArrival: () => events.push("arrival_confirmed"),
+    });
+    tracker.start();
+    expect(events).toEqual(["route_started", "arrival_confirmed"]);
+    expect(clearWatch).toHaveBeenCalledExactlyOnceWith(7);
+    tracker.start();
+    expect(events).toEqual([
+      "route_started",
+      "arrival_confirmed",
+      "route_started",
+      "arrival_confirmed",
+    ]);
+    const unsupportedEvents: string[] = [];
+    createArrivalTracker({
+      destination,
+      onState: vi.fn(),
+      onStart: () => unsupportedEvents.push("route_started"),
+      onArrival: () => unsupportedEvents.push("arrival_confirmed"),
+    }).start();
+    expect(unsupportedEvents).toEqual([]);
   });
 });

@@ -49,16 +49,21 @@ async function installLocationMock(page: Page) {
   });
 }
 
-async function emitPosition(page: Page, latitude: number, longitude: number) {
+async function emitPosition(
+  page: Page,
+  latitude: number,
+  longitude: number,
+  accuracy = 5,
+) {
   await page.evaluate(
-    ({ latitude, longitude }) => {
+    ({ latitude, longitude, accuracy }) => {
       (
         window as typeof window & { __arrivalWitness: ArrivalWitness }
       ).__arrivalWitness.success?.({
-        coords: { latitude, longitude },
+        coords: { latitude, longitude, accuracy },
       } as GeolocationPosition);
     },
-    { latitude, longitude },
+    { latitude, longitude, accuracy },
   );
 }
 
@@ -289,6 +294,88 @@ test("analytics emits route_started on explicit click and arrival_confirmed once
     expect(JSON.stringify(event)).not.toContain("-4.2636");
     expect(JSON.stringify(event)).not.toContain("15.2429");
   }
+});
+
+test("a centered inaccurate fix remains uncertain until accuracy supports arrival", async ({
+  page,
+}) => {
+  await installLocationMock(page);
+  const events = await captureAnalytics(page);
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await emitPosition(page, -4.2636, 15.2429, 1000);
+  await expect(
+    page.getByRole("status").filter({ hasText: /précision insuffisante/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /suivi d’arrivée en cours/i }),
+  ).toBeVisible();
+  expect(await witness(page)).toEqual({ calls: 1, cleared: [] });
+  expect(
+    events.filter((event) => event.name === "arrival_confirmed"),
+  ).toHaveLength(0);
+  await emitPosition(page, -4.2636, 15.2429, Number.NaN);
+  await expect(
+    page.getByRole("status").filter({ hasText: /précision insuffisante/i }),
+  ).toBeVisible();
+  expect(await witness(page)).toEqual({ calls: 1, cleared: [] });
+  await emitPosition(page, -4.2636, 15.2429, 50);
+  await expect(page.getByText(/précision insuffisante/i)).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: /arrivée à proximité/i }),
+  ).toBeVisible();
+  await expect
+    .poll(
+      () => events.filter((event) => event.name === "arrival_confirmed").length,
+    )
+    .toBe(1);
+  expect(await witness(page)).toEqual({ calls: 1, cleared: [1] });
+});
+
+test("synchronous GPS fix emits route_started before arrival_confirmed; no API emits neither", async ({
+  page,
+}) => {
+  await page.addInitScript((point) => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        watchPosition(success: PositionCallback) {
+          success({
+            coords: { ...point, accuracy: 1 },
+          } as GeolocationPosition);
+          return 3;
+        },
+        clearWatch() {},
+      },
+    });
+  }, pharmacy.coordinates);
+  const events = await captureAnalytics(page);
+  await page.goto(`/pharmacies/${id}/itineraire`);
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await expect.poll(() => events.length).toBe(2);
+  expect(events.map((event) => event.name)).toEqual([
+    "route_started",
+    "arrival_confirmed",
+  ]);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await page.reload();
+  events.length = 0;
+  await page
+    .getByRole("button", { name: "Démarrer le suivi d’arrivée" })
+    .click();
+  await expect(
+    page.getByText(/ne prend pas en charge la géolocalisation/i),
+  ).toBeVisible();
+  expect(events).toEqual([]);
 });
 
 test("denial, cancellation and acquisition failure never emit arrival analytics", async ({
