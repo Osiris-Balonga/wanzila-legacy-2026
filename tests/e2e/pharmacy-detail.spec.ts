@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const id = "00000000-0000-4000-8000-000000000007";
@@ -90,8 +91,8 @@ test("detail-to-call is explicit, keyboard reachable and tracked", async ({
   await expect(page.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
   await expect(
     page.getByRole("button", { name: "Signaler un problème" }),
-  ).toBeDisabled();
-  await expect(page.getByText(/Signalement bientôt disponible/)).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByText(/Signalement bientôt disponible/)).toHaveCount(0);
   expect(events.map((event) => event.name)).toContain("pharmacy_detail_viewed");
   expect(events.map((event) => event.name)).not.toContain(
     "pharmacy_call_started",
@@ -204,10 +205,16 @@ test("detail has no horizontal overflow at required widths and copy is accessibl
       scroll: element.scrollWidth,
     }));
     expect(dimensions.scroll, `overflow at ${width}px`).toBe(dimensions.client);
+    const fullPagePath = process.env.WANZILA_DETAIL_CAPTURE_DIR
+      ? resolve(process.env.WANZILA_DETAIL_CAPTURE_DIR, `detail-${width}.png`)
+      : width === 390
+        ? testInfo.outputPath("visual-evidence", "pharmacy-detail-390.png")
+        : testInfo.outputPath(`detail-${width}.png`);
+    if (width === 390 && !process.env.WANZILA_DETAIL_CAPTURE_DIR) {
+      await mkdir(testInfo.outputPath("visual-evidence"), { recursive: true });
+    }
     await page.screenshot({
-      path: process.env.WANZILA_DETAIL_CAPTURE_DIR
-        ? resolve(process.env.WANZILA_DETAIL_CAPTURE_DIR, `detail-${width}.png`)
-        : testInfo.outputPath(`detail-${width}.png`),
+      path: fullPagePath,
       fullPage: true,
       animations: "disabled",
     });

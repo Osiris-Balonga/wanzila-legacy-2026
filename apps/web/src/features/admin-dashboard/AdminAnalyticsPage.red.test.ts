@@ -107,12 +107,10 @@ describe("issue #55 analytics dashboard component contract (RED)", () => {
     expect(markup).toContain("Pharmacie des Manguiers");
     expect(markup).toMatch(/alertes|actions à traiter/i);
     expect(markup).toContain("3 contributions en attente");
-    expect(markup).toContain("2 signalements non résolus");
+    expect(markup).not.toMatch(/signalements/i);
     expect(markup).not.toContain('href="/admin/contributions"');
     expect(markup).not.toContain('href="/admin/signalements"');
-    expect(markup).toMatch(
-      /gestion des contributions et signalements bientôt disponible/i,
-    );
+    expect(markup).toMatch(/gestion des contributions bientôt disponible/i);
     expect(markup).not.toContain("Carte d’activité");
     expect(markup).not.toMatch(
       /carte de chaleur|heatmap|position utilisateur/i,
@@ -181,7 +179,7 @@ describe("issue #55 data-quality component contract (RED)", () => {
     expect(markup).toContain("Anomalies à traiter");
     expect(markup).toContain("Actions en attente");
     expect(markup).toContain("3 contributions en attente");
-    expect(markup).toContain("2 signalements non résolus");
+    expect(markup).not.toMatch(/signalements/i);
     expect(markup).not.toContain('href="/admin/contributions"');
     expect(markup).not.toContain('href="/admin/signalements"');
     expect(markup).toMatch(/aucun décompte d’anomalies n’est déduit/i);
