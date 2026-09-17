@@ -36,10 +36,7 @@ const administrationLinks: Array<{
   { href: "/admin/pharmacies", icon: "pharmacy", label: "Pharmacies" },
   { href: "/admin/gardes", icon: "calendar", label: "Gardes" },
   { href: "/admin/contributions", icon: "users", label: "Contributions" },
-  { href: "/admin/urgences", icon: "shield", label: "Urgences" },
   { href: "/admin/qualite", icon: "shield", label: "Sources & qualité" },
-  { href: "/admin/utilisateurs", icon: "users", label: "Utilisateurs" },
-  { href: "/admin/parametres", icon: "settings", label: "Paramètres" },
 ];
 const isCurrentRoute = (href: string, pathname: string) =>
   href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
