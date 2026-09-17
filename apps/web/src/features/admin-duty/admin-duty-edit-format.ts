@@ -27,7 +27,7 @@ const localPartsFormatter = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
-function localParts(instant: string): { date: string; time: string } {
+export function localParts(instant: string): { date: string; time: string } {
   const parts = Object.fromEntries(
     localPartsFormatter
       .formatToParts(new Date(instant))

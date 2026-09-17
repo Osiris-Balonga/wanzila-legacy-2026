@@ -1,5 +1,7 @@
 import {
   adminDutyListResponseSchema,
+  adminDutyExceptionListResponseSchema,
+  adminDutyExceptionResponseSchema,
   adminDutyRevisionListResponseSchema,
   adminDutyRevisionResponseSchema,
   adminDutyResponseSchema,
@@ -7,11 +9,17 @@ import {
   adminPharmacyListResponseSchema,
   adminPharmacyResponseSchema,
   adminScheduleSourceListResponseSchema,
+  adminScheduleSourceResponseSchema,
   createAdminDutyRequestSchema,
+  createAdminDutyExceptionRequestSchema,
   createAdminDutyRevisionRequestSchema,
+  createAdminScheduleSourceRequestSchema,
   updateAdminDutyRequestSchema,
+  updateAdminDutyExceptionRequestSchema,
+  updateAdminScheduleSourceRequestSchema,
   type AdminDuty,
   type AdminDutyRevision,
+  type AdminDutyException,
   type AdminPharmacy,
   type AdminScheduleSource,
 } from "@wanzila/contracts";
@@ -105,6 +113,66 @@ export async function listSources(): Promise<AdminScheduleSource[]> {
     page += 1;
   } while (page <= totalPages);
   return sources;
+}
+
+export async function saveSource(
+  input: {
+    name: string;
+    description?: string | null;
+    reliability?: number;
+    observedAt: string;
+  },
+  id?: string,
+): Promise<AdminScheduleSource> {
+  const body = id
+    ? updateAdminScheduleSourceRequestSchema.parse(input)
+    : createAdminScheduleSourceRequestSchema.parse(input);
+  return adminScheduleSourceResponseSchema.parse(
+    await request(id ? `/admin/sources/${id}` : "/admin/sources", {
+      method: id ? "PATCH" : "POST",
+      body: JSON.stringify(body),
+    }),
+  ).data;
+}
+
+export async function listExceptions(
+  id: string,
+): Promise<AdminDutyException[]> {
+  const exceptions: AdminDutyException[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const result = adminDutyExceptionListResponseSchema.parse(
+      await request(`/admin/duties/${id}/exceptions?page=${page}&pageSize=50`),
+    );
+    exceptions.push(...result.data);
+    totalPages = result.pagination.totalPages;
+    page += 1;
+  } while (page <= totalPages);
+  return exceptions;
+}
+
+export async function saveException(
+  dutyId: string,
+  input: {
+    kind: "CANCELLED" | "UNAVAILABLE";
+    startsAt: string;
+    endsAt: string;
+    reason?: string | null;
+  },
+  exceptionId?: string,
+): Promise<AdminDutyException> {
+  const body = exceptionId
+    ? updateAdminDutyExceptionRequestSchema.parse(input)
+    : createAdminDutyExceptionRequestSchema.parse(input);
+  return adminDutyExceptionResponseSchema.parse(
+    await request(
+      exceptionId
+        ? `/admin/duties/${dutyId}/exceptions/${exceptionId}`
+        : `/admin/duties/${dutyId}/exceptions`,
+      { method: exceptionId ? "PATCH" : "POST", body: JSON.stringify(body) },
+    ),
+  ).data;
 }
 
 export async function listPharmacies(name = ""): Promise<AdminPharmacy[]> {
