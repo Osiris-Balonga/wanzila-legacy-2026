@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 const jagger = "00000000-0000-4000-8000-000000000101";
 const mavre = "00000000-0000-4000-8000-000000000102";
 const removed = "00000000-0000-4000-8000-000000000103";
+const centre = "00000000-0000-4000-8000-000000000104";
 const storageKey = "wanzila:saved-pharmacy-ids:v1";
 
 const duty = {
@@ -14,14 +15,24 @@ const duty = {
 };
 const pharmacy = (id: string) => ({
   id,
-  name: id === jagger ? "Pharmacie de nuit Jagger" : "Pharmacie Mavré",
+  name:
+    id === jagger
+      ? "Pharmacie de nuit Jagger"
+      : id === centre
+        ? "Pharmacie du Centre"
+        : "Pharmacie Mavré",
   address: {
     line: "Avenue des Trois Martyrs",
-    district: id === jagger ? "Poto-Poto" : "M’Foa",
+    district: id === jagger ? "Poto-Poto" : id === centre ? "Bacongo" : "M’Foa",
     arrondissement: "Poto-Poto",
   },
-  coordinates: { latitude: -4.273, longitude: 15.245 },
-  ...(id === jagger ? { currentDuty: duty } : {}),
+  coordinates:
+    id === jagger
+      ? { latitude: -4.278, longitude: 15.251 }
+      : id === centre
+        ? { latitude: -4.283, longitude: 15.252 }
+        : { latitude: -4.279, longitude: 15.268 },
+  ...(id === jagger || id === centre ? { currentDuty: duty } : {}),
 });
 
 test.beforeEach(async ({ page }) => {
@@ -99,12 +110,26 @@ test("saved page is responsive, has real MapLibre, and links to detail/route", a
 }) => {
   await page.addInitScript(
     ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
-    { key: storageKey, ids: [jagger, mavre] },
+    {
+      key: storageKey,
+      ids: process.env.WANZILA_SAVED_CAPTURE_DIR
+        ? [jagger, mavre, centre]
+        : [jagger, mavre],
+    },
   );
   for (const width of [320, 390, 768, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
+    await page.setViewportSize({ width, height: width <= 390 ? 844 : 900 });
     await page.goto("/enregistrees");
     await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+    await expect(page.locator(".pharmacy-map-marker")).toHaveCount(
+      process.env.WANZILA_SAVED_CAPTURE_DIR ? 3 : 2,
+    );
+    const markers = await page
+      .locator(".pharmacy-map-marker")
+      .evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().x),
+      );
+    expect(Math.abs((markers[0] ?? 0) - (markers[1] ?? 0))).toBeGreaterThan(20);
     await expect(page.getByText("Pharmacie de nuit Jagger")).toBeVisible();
     await expect(page.getByText("Pharmacie Mavré")).toBeVisible();
     await expect(page.getByText("Pas de garde actuellement")).toBeVisible();
@@ -118,7 +143,7 @@ test("saved page is responsive, has real MapLibre, and links to detail/route", a
           process.env.WANZILA_SAVED_CAPTURE_DIR,
           `saved-${width}.png`,
         ),
-        fullPage: true,
+        fullPage: false,
       });
     }
     expect(
@@ -202,4 +227,55 @@ test("partial API failure keeps successful cards and identifies partial failure"
   await expect(
     page.getByText("Certaines pharmacies enregistrées sont indisponibles"),
   ).toBeVisible();
+});
+
+test("failed undo keeps the list empty and reports the storage error", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
+    { key: storageKey, ids: [jagger] },
+  );
+  await page.goto("/enregistrees");
+  await page
+    .getByRole("button", { name: "Retirer Pharmacie de nuit Jagger" })
+    .click();
+  await expect(page.getByText("Aucune pharmacie enregistrée")).toBeVisible();
+  await page.evaluate(() => {
+    Storage.prototype.setItem = function () {
+      throw new Error("storage blocked");
+    };
+  });
+  await page.getByRole("button", { name: "Annuler le retrait" }).click();
+  await expect(
+    page.getByText("Impossible de modifier les enregistrées sur ce navigateur"),
+  ).toBeVisible();
+  await expect(page.getByText("Aucune pharmacie enregistrée")).toBeVisible();
+  expect(
+    await page.evaluate((key) => localStorage.getItem(key), storageKey),
+  ).toBe("[]");
+});
+
+test("a visible duty expires without reloading the saved page", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-09-17T00:00:00.000Z") });
+  await page.addInitScript(
+    ({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)),
+    { key: storageKey, ids: [jagger] },
+  );
+  await page.route(`**/api/v1/pharmacies/${jagger}`, (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          ...pharmacy(jagger),
+          currentDuty: { ...duty, endsAt: "2026-09-17T00:01:00.000Z" },
+        },
+      },
+    }),
+  );
+  await page.goto("/enregistrees");
+  await expect(page.getByText("De garde maintenant")).toBeVisible();
+  await page.clock.fastForward(61_000);
+  await expect(page.getByText("Garde à confirmer")).toBeVisible();
 });

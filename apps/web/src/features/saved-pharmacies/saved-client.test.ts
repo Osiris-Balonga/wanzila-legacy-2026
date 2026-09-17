@@ -19,10 +19,12 @@ const pharmacy = (id: string, currentDuty?: object) => ({
 
 describe("fresh saved-pharmacy resolution", () => {
   it("loads each ID through the public detail contract without trusting stored metadata", async () => {
-    const fetch = vi.fn(async (url: string) =>
-      Response.json({
-        data: pharmacy(url.endsWith(jagger) ? jagger : mavre),
-      }),
+    const fetch = vi.fn((url: string) =>
+      Promise.resolve(
+        Response.json({
+          data: pharmacy(url.endsWith(jagger) ? jagger : mavre),
+        }),
+      ),
     );
     const result = await fetchSavedPharmacies(fetch, [jagger, mavre]);
     expect(result.pharmacies.map((item) => item.id)).toEqual([jagger, mavre]);
@@ -33,10 +35,11 @@ describe("fresh saved-pharmacy resolution", () => {
   });
 
   it("separates removed records from offline or invalid responses so only 404 is cleaned", async () => {
-    const fetch = vi.fn(async (url: string) => {
-      if (url.endsWith(removed)) return new Response(null, { status: 404 });
-      if (url.endsWith(mavre)) throw new Error("offline");
-      return Response.json({ data: pharmacy(jagger) });
+    const fetch = vi.fn((url: string) => {
+      if (url.endsWith(removed))
+        return Promise.resolve(new Response(null, { status: 404 }));
+      if (url.endsWith(mavre)) return Promise.reject(new Error("offline"));
+      return Promise.resolve(Response.json({ data: pharmacy(jagger) }));
     });
     const result = await fetchSavedPharmacies(fetch, [jagger, mavre, removed]);
     expect(result.pharmacies.map((item) => item.id)).toEqual([jagger]);
@@ -45,10 +48,12 @@ describe("fresh saved-pharmacy resolution", () => {
   });
 
   it("rejects a malformed 200 response and never invents an active duty", async () => {
-    const fetch = vi.fn(async (url: string) =>
-      Response.json({
-        data: url.endsWith(jagger) ? { id: jagger } : pharmacy(mavre),
-      }),
+    const fetch = vi.fn((url: string) =>
+      Promise.resolve(
+        Response.json({
+          data: url.endsWith(jagger) ? { id: jagger } : pharmacy(mavre),
+        }),
+      ),
     );
     const result = await fetchSavedPharmacies(fetch, [jagger, mavre]);
     expect(result.failedIds).toEqual([jagger]);
