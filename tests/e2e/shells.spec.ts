@@ -92,36 +92,18 @@ test("the narrow administration Sheet preserves keyboard focus lifecycle", async
   await expect(trigger).toBeFocused();
 });
 
-test("administration placeholder tabs support pointer and keyboard selection", async ({
+test("unknown administration route offers a return to the dashboard", async ({
   page,
 }) => {
   await page.goto("/admin/parametres");
-  const tablist = page.getByRole("tablist", {
-    name: "Sections de démonstration",
+  await expect(
+    page.getByRole("heading", { name: "Page introuvable" }),
+  ).toBeVisible();
+  const returnLink = page.getByRole("link", {
+    name: "Retour au tableau de bord",
   });
-  const overviewTab = tablist.getByRole("tab", { name: "Vue d’ensemble" });
-  const componentsTab = tablist.getByRole("tab", { name: "Composants" });
-
-  await expect(overviewTab).toHaveAttribute("aria-selected", "true");
-  await expect(overviewTab).toHaveAttribute("tabindex", "0");
-  await expect(componentsTab).toHaveAttribute("aria-selected", "false");
-  await expect(componentsTab).toHaveAttribute("tabindex", "-1");
-
-  await componentsTab.click();
-  await expect(componentsTab).toHaveAttribute("aria-selected", "true");
-  await expect(componentsTab).toHaveAttribute("tabindex", "0");
-  await expect(overviewTab).toHaveAttribute("tabindex", "-1");
-
-  await componentsTab.press("Home");
-  await expect(overviewTab).toBeFocused();
-  await expect(overviewTab).toHaveAttribute("aria-selected", "true");
-  await overviewTab.press("ArrowRight");
-  await expect(componentsTab).toBeFocused();
-  await expect(componentsTab).toHaveAttribute("aria-selected", "true");
-  await componentsTab.press("ArrowLeft");
-  await expect(overviewTab).toBeFocused();
-  await expect(overviewTab).toHaveAttribute("aria-selected", "true");
-  await overviewTab.press("End");
-  await expect(componentsTab).toBeFocused();
-  await expect(componentsTab).toHaveAttribute("aria-selected", "true");
+  await expect(returnLink).toHaveAttribute("href", "/admin");
+  await returnLink.click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("main")).toBeVisible();
 });
