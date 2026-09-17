@@ -7,7 +7,15 @@ import {
 } from "@wanzila/domain";
 
 export type ArrivalState =
-  | { status: "idle" | "requesting" | "cancelled" | "arrived" }
+  | {
+      status:
+        | "idle"
+        | "requesting"
+        | "cancelled"
+        | "arrived"
+        | "already-nearby"
+        | "manual-declared";
+    }
   | { status: "active"; distanceMeters: number; arrivalUncertain: boolean }
   | { status: "denied" | "timeout" | "unavailable" | "unsupported" };
 
@@ -21,6 +29,7 @@ export function createArrivalTracker({
   onPosition,
   onStart,
   onArrival,
+  onAlreadyNearby,
 }: {
   geolocation?: ArrivalGeolocation;
   destination: ArrivalCoordinates;
@@ -29,11 +38,13 @@ export function createArrivalTracker({
   onPosition?: (position: ArrivalCoordinates | null) => void;
   onStart?: () => void;
   onArrival?: () => void;
+  onAlreadyNearby?: () => void;
 }) {
   let watchId: number | null = null;
   let generation = 0;
   let watching = false;
   let disposed = false;
+  let observedAway = false;
 
   function stop(notifyPosition = true) {
     watching = false;
@@ -59,6 +70,7 @@ export function createArrivalTracker({
         return false;
       }
       const attempt = ++generation;
+      observedAway = false;
       watching = true;
       onState({ status: "requesting" });
       try {
@@ -85,10 +97,21 @@ export function createArrivalTracker({
               isArrivalCertain(distanceMeters, accuracyMeters, radiusMeters)
             ) {
               stop();
-              onArrival?.();
-              onState({ status: "arrived" });
+              if (observedAway) {
+                onArrival?.();
+                onState({ status: "arrived" });
+              } else {
+                onAlreadyNearby?.();
+                onState({ status: "already-nearby" });
+              }
               return;
             }
+            if (
+              Number.isFinite(accuracyMeters) &&
+              accuracyMeters >= 0 &&
+              distanceMeters - accuracyMeters > radiusMeters
+            )
+              observedAway = true;
             // Only the current fix is held transiently for the existing map marker.
             onPosition?.(current);
             onState({

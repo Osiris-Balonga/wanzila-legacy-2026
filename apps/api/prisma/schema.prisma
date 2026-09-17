@@ -37,6 +37,14 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum RouteAttemptOutcome {
+  UNKNOWN
+  GPS_CONFIRMED
+  USER_DECLARED
+  STOPPED
+  ALREADY_NEARBY
+}
+
 model AdminUser {
   id                     String         @id @default(uuid()) @db.Char(36)
   email                  String         @unique @db.VarChar(320)
@@ -240,4 +248,16 @@ model AnalyticsEvent {
 
   @@index([name, occurredAt])
   @@index([pharmacyId, occurredAt])
+}
+
+model RouteAttempt {
+  id         String              @id @db.Char(36)
+  pharmacyId String              @db.Char(36)
+  sessionId  String              @db.Char(36)
+  outcome    RouteAttemptOutcome @default(UNKNOWN)
+  startedAt  DateTime            @default(now()) @db.DateTime(3)
+  resolvedAt DateTime?           @db.DateTime(3)
+
+  @@index([startedAt, outcome])
+  @@index([pharmacyId, startedAt])
 }

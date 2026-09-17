@@ -36,6 +36,37 @@ async function mockOverview(
   options: { empty?: boolean; status?: number; hold?: Promise<void> } = {},
 ) {
   const requested: string[] = [];
+  await page.route(
+    "**/api/v1/admin/analytics/route-outcomes**",
+    async (route) => {
+      const window =
+        new URL(route.request().url()).searchParams.get("window") === "30d"
+          ? "30d"
+          : "7d";
+      await route.fulfill({
+        json: {
+          data: {
+            version: 1,
+            window,
+            period: {
+              timeZone: "Africa/Brazzaville",
+              from: "2026-09-01T00:00:00.000Z",
+              to: "2026-09-17T00:00:00.000Z",
+              asOf: "2026-09-16T12:00:00.000Z",
+            },
+            counts: {
+              started: 12,
+              gpsConfirmed: 3,
+              userDeclared: 2,
+              stopped: 1,
+              alreadyNearby: 2,
+              unknown: 4,
+            },
+          },
+        },
+      });
+    },
+  );
   await page.route("**/api/v1/admin/analytics/quality**", async (route) => {
     const params = new URL(route.request().url()).searchParams;
     await route.fulfill({
@@ -125,6 +156,7 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   for (const region of [
     "Indicateurs d’activité",
+    "Résultats des trajets",
     "Tunnel d’activité",
     "Pharmacies les plus consultées",
     "Utilisation des filtres",
@@ -187,6 +219,34 @@ test("dashboard and quality routes issue real 7d overview requests and show thei
       (url) => url === "/api/v1/admin/analytics/overview?window=7d",
     ),
   ).toHaveLength(2);
+});
+
+test("route outcome counts stay distinct and responsive without a completion rate", async ({
+  page,
+}, testInfo) => {
+  await mockOverview(page);
+  await page.goto("/admin");
+  const results = page.getByRole("region", { name: "Résultats des trajets" });
+  await expect(results).toContainText("12");
+  await expect(results).toContainText("Arrivée déclarée");
+  await expect(results).toContainText("Issue inconnue");
+  await expect(results).toContainText(/Inconnu.*trajet échoué/i);
+  await expect(results).not.toContainText(/taux de conversion/i);
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page
+        .locator("html")
+        .evaluate((element) => element.scrollWidth - element.clientWidth),
+    ).toBe(0);
+    await results.screenshot({
+      path: testInfo.outputPath(
+        "visual-evidence",
+        `route-outcomes-${width}.png`,
+      ),
+      animations: "disabled",
+    });
+  }
 });
 
 test("the dashboard actually fetches the reviewed overview endpoint", async ({

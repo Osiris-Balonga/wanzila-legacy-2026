@@ -17,6 +17,7 @@ import {
 import { registerEmergencyContactRoutes } from "./modules/public-api/emergency-contact-routes.js";
 import { registerPublicPharmacyRoutes } from "./modules/public-api/routes.js";
 import { registerRoutingRoutes } from "./modules/routing/routes.js";
+import { registerRouteAttemptRoutes } from "./modules/route-attempts/routes.js";
 import { registerAdministratorAuthRoutes } from "./modules/admin-auth/routes.js";
 import { registerAdminPharmacyRoutes } from "./modules/admin-pharmacy/routes.js";
 import { registerAdminDutyRoutes } from "./modules/admin-duty/routes.js";
@@ -184,6 +185,7 @@ export async function createApp(options: AppOptions) {
             ? { timeoutMs: options.routingTimeoutMs }
             : {}),
         });
+        registerRouteAttemptRoutes(publicApi, { prisma, now });
       },
       { prefix: "/api/v1" },
     );

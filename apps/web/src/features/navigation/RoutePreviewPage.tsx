@@ -12,7 +12,10 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
-import type { PublicPharmacy } from "@wanzila/contracts";
+import type {
+  PublicPharmacy,
+  RouteAttemptTerminalOutcome,
+} from "@wanzila/contracts";
 import { DEFAULT_ARRIVAL_RADIUS_METERS } from "@wanzila/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,6 +30,10 @@ import { PharmacyDetailMap } from "../pharmacy-detail/PharmacyDetailMap";
 import { ArrivalControls, ArrivalMapBanner } from "./ArrivalControls";
 import { createArrivalTracker, type ArrivalState } from "./arrival-tracker";
 import { createRouteClient, type RouteState } from "./route-client";
+import {
+  createRouteAttemptClient,
+  type AttemptRequestResult,
+} from "./route-attempt-client";
 import {
   buildExternalDirectionsUrl,
   classifyGeolocationError,
@@ -50,6 +57,19 @@ type LocationState =
       accuracyMeters: number | null;
     }
   | { status: LocationFailure | "unsupported" };
+
+type AttemptUiState =
+  | { status: "idle" | "starting" | "start-error" | "active" }
+  | {
+      status: "recording" | "recorded" | "record-error";
+      outcome: RouteAttemptTerminalOutcome;
+    };
+
+type CurrentAttempt = {
+  attemptId: string;
+  sessionId: string;
+  terminal: RouteAttemptTerminalOutcome | null;
+};
 
 const modeOptions: {
   value: TravelMode;
@@ -75,6 +95,19 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
       createRouteClient({ fetch: (input, init) => window.fetch(input, init) }),
     [],
   );
+  const attemptClient = useMemo(
+    () =>
+      createRouteAttemptClient({
+        fetch: (input, init) => window.fetch(input, init),
+      }),
+    [],
+  );
+  const [attemptState, setAttemptState] = useState<AttemptUiState>({
+    status: "idle",
+  });
+  const attemptRef = useRef<CurrentAttempt | null>(null);
+  const attemptVersion = useRef(0);
+  const [navigationActive, setNavigationActive] = useState(false);
   const [arrivalState, setArrivalState] = useState<ArrivalState>({
     status: "idle",
   });
@@ -91,10 +124,7 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
     : undefined;
   const destinationLatitude = destination?.latitude;
   const destinationLongitude = destination?.longitude;
-  const showingNavigation =
-    arrivalState.status === "requesting" ||
-    arrivalState.status === "active" ||
-    arrivalState.status === "arrived";
+  const showingNavigation = navigationActive;
   const route = routeState.status === "success" ? routeState.route : null;
   const originAccuracyWarning =
     location.status !== "obtained"
@@ -122,9 +152,44 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
   useEffect(
     () => () => {
       requestVersion.current += 1;
+      attemptVersion.current += 1;
       routeClient.cancel();
     },
     [routeClient],
+  );
+
+  const persistOutcome = useCallback(
+    async (attempt: CurrentAttempt, outcome: RouteAttemptTerminalOutcome) => {
+      setAttemptState({ status: "recording", outcome });
+      const result: AttemptRequestResult = await attemptClient.finish(
+        attempt.attemptId,
+        attempt.sessionId,
+        outcome,
+      );
+      if (attemptRef.current?.attemptId !== attempt.attemptId) return;
+      setAttemptState(
+        result.status === "ok" && result.attempt.outcome === outcome
+          ? { status: "recorded", outcome }
+          : { status: "record-error", outcome },
+      );
+    },
+    [attemptClient],
+  );
+
+  const finishAttempt = useCallback(
+    (outcome: RouteAttemptTerminalOutcome) => {
+      const attempt = attemptRef.current;
+      if (!attempt || attempt.terminal !== null) return;
+      attempt.terminal = outcome;
+      if (outcome === "USER_DECLARED") {
+        arrivalTracker.current?.cancel();
+        setArrivalState({ status: "manual-declared" });
+      } else if (outcome === "STOPPED") {
+        arrivalTracker.current?.cancel();
+      }
+      void persistOutcome(attempt, outcome);
+    },
+    [persistOutcome],
   );
 
   useEffect(() => {
@@ -169,25 +234,15 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
       radiusMeters: DEFAULT_ARRIVAL_RADIUS_METERS,
       onState: setArrivalState,
       onPosition: setArrivalPosition,
-      onStart: () =>
-        analytics.track({
-          schemaVersion: 1,
-          name: "route_started",
-          properties: { pharmacyId: pharmacy.id },
-        }),
-      onArrival: () =>
-        analytics.track({
-          schemaVersion: 1,
-          name: "arrival_confirmed",
-          properties: { pharmacyId: pharmacy.id },
-        }),
+      onArrival: () => finishAttempt("GPS_CONFIRMED"),
+      onAlreadyNearby: () => finishAttempt("ALREADY_NEARBY"),
     });
     arrivalTracker.current = tracker;
     return () => {
       tracker.dispose();
       arrivalTracker.current = null;
     };
-  }, [analytics, destinationLatitude, destinationLongitude, pharmacy.id]);
+  }, [destinationLatitude, destinationLongitude, finishAttempt]);
 
   useEffect(() => {
     if (!showingNavigation) return;
@@ -196,22 +251,67 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
         window.location.pathname !== `/pharmacies/${pharmacy.id}/navigation`
       ) {
         arrivalTracker.current?.cancel();
+        attemptVersion.current += 1;
+        attemptRef.current = null;
+        setAttemptState({ status: "idle" });
+        setNavigationActive(false);
       }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [pharmacy.id, showingNavigation]);
 
-  function startArrival() {
+  async function startArrival() {
     if (!destination || !arrivalTracker.current) return;
-    if (!arrivalTracker.current.start()) return;
+    if (attemptState.status === "starting") return;
+    let attempt = attemptRef.current;
+    if (attempt && attempt.terminal !== null) {
+      if (attemptState.status !== "recorded") return;
+      attemptRef.current = null;
+      attempt = null;
+    }
+    if (attemptState.status === "active" && attempt) {
+      arrivalTracker.current.start();
+      setNavigationActive(true);
+      return;
+    }
+    if (!attempt) {
+      attempt = {
+        attemptId: crypto.randomUUID(),
+        sessionId: analytics.sessionId(),
+        terminal: null,
+      };
+      attemptRef.current = attempt;
+    }
+    const version = ++attemptVersion.current;
+    setAttemptState({ status: "starting" });
+    const result = await attemptClient.start({
+      attemptId: attempt.attemptId,
+      pharmacyId: pharmacy.id,
+      sessionId: attempt.sessionId,
+    });
+    if (version !== attemptVersion.current) return;
+    if (result.status !== "ok" || result.attempt.outcome !== "UNKNOWN") {
+      setAttemptState({ status: "start-error" });
+      return;
+    }
+    setAttemptState({ status: "active" });
+    setNavigationActive(true);
     const path = `/pharmacies/${pharmacy.id}/navigation`;
     if (window.location.pathname !== path)
       window.history.pushState(null, "", path);
+    arrivalTracker.current.start();
   }
 
   function quitArrival() {
-    arrivalTracker.current?.cancel();
+    if (attemptRef.current?.terminal === null) {
+      finishAttempt("STOPPED");
+    } else {
+      arrivalTracker.current?.cancel();
+      attemptRef.current = null;
+      setAttemptState({ status: "idle" });
+    }
+    setNavigationActive(false);
     if (window.location.pathname.endsWith("/navigation")) {
       window.history.replaceState(
         null,
@@ -219,6 +319,16 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
         `/pharmacies/${pharmacy.id}/itineraire`,
       );
     }
+  }
+
+  function declareArrival() {
+    finishAttempt("USER_DECLARED");
+  }
+
+  function retryOutcome() {
+    const attempt = attemptRef.current;
+    if (!attempt?.terminal || attemptState.status !== "record-error") return;
+    void persistOutcome(attempt, attempt.terminal);
   }
 
   function requestLocation() {
@@ -569,10 +679,39 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           <ArrivalControls
             state={arrivalState}
             radiusMeters={DEFAULT_ARRIVAL_RADIUS_METERS}
-            onStart={startArrival}
+            onStart={() => void startArrival()}
             onQuit={quitArrival}
+            onDeclare={declareArrival}
+            canDeclare={attemptState.status === "active"}
+            starting={attemptState.status === "starting"}
+            recording={attemptState.status === "recording"}
             routeWasRequested={routeConsent}
           />
+        ) : null}
+        {attemptState.status === "start-error" ? (
+          <p className="route-preview-outcome-error" role="alert">
+            Le suivi n’a pas pu être enregistré. Réessayez le démarrage ; aucun
+            trajet n’est compté tant que cette étape échoue.
+          </p>
+        ) : null}
+        {attemptState.status === "recording" ? (
+          <p className="route-preview-outcome-status" role="status">
+            Enregistrement du résultat…
+          </p>
+        ) : attemptState.status === "recorded" ? (
+          <p className="route-preview-outcome-status" role="status">
+            Résultat du trajet enregistré.
+          </p>
+        ) : attemptState.status === "record-error" ? (
+          <div className="route-preview-outcome-error" role="alert">
+            <p>
+              Résultat observé sur cet appareil, mais son enregistrement a
+              échoué. Le bilan reste inconnu tant que vous ne réessayez pas.
+            </p>
+            <Button onClick={retryOutcome} type="button" variant="outline">
+              Réessayer l’enregistrement
+            </Button>
+          </div>
         ) : null}
 
         {!showingNavigation ? (

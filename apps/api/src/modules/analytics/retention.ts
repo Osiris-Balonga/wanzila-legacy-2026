@@ -13,4 +13,7 @@ export async function cleanupExpiredAnalyticsEvents(options: {
   await options.prisma.analyticsEvent.deleteMany({
     where: { occurredAt: { lt: cutoff } },
   });
+  await options.prisma.routeAttempt.deleteMany({
+    where: { startedAt: { lt: cutoff } },
+  });
 }

@@ -17,14 +17,18 @@ export function ArrivalMapBanner({
   if (
     state.status !== "requesting" &&
     state.status !== "active" &&
-    state.status !== "arrived"
+    state.status !== "arrived" &&
+    state.status !== "already-nearby" &&
+    state.status !== "manual-declared"
   ) {
     return null;
   }
   return (
     <div className="arrival-map-banner" aria-live="polite">
       <span aria-hidden="true" className="arrival-map-banner__icon">
-        {state.status === "arrived" ? (
+        {state.status === "arrived" ||
+        state.status === "already-nearby" ||
+        state.status === "manual-declared" ? (
           <Check />
         ) : (
           <NavigationArrowIcon weight="fill" />
@@ -33,16 +37,24 @@ export function ArrivalMapBanner({
       <div>
         <small>Suivi de proximité</small>
         <h2>
-          {state.status === "arrived"
-            ? "Arrivée à proximité estimée"
-            : state.status === "requesting"
-              ? "Recherche de votre position…"
-              : "Suivi d’arrivée en cours"}
+          {state.status === "already-nearby"
+            ? "Déjà à proximité"
+            : state.status === "manual-declared"
+              ? "Arrivée déclarée"
+              : state.status === "arrived"
+                ? "Arrivée à proximité estimée"
+                : state.status === "requesting"
+                  ? "Recherche de votre position…"
+                  : "Suivi d’arrivée en cours"}
         </h2>
         <p>
-          {state.status === "arrived"
-            ? `Position probablement à ${radiusMeters} m ou moins de ${pharmacyName}, à vol d’oiseau, selon la précision estimée du GPS.`
-            : `Rapprochez-vous de ${pharmacyName}. Consultez les étapes du trajet ; aucun guidage en temps réel n’est fourni.`}
+          {state.status === "already-nearby"
+            ? `Vous étiez déjà à proximité de ${pharmacyName} au début du suivi. Le trajet parcouru n’est pas confirmé.`
+            : state.status === "manual-declared"
+              ? `Vous avez déclaré être arrivé à ${pharmacyName}. Cette arrivée n’a pas été vérifiée par GPS.`
+              : state.status === "arrived"
+                ? `Position probablement à ${radiusMeters} m ou moins de ${pharmacyName}, à vol d’oiseau, selon la précision estimée du GPS.`
+                : `Rapprochez-vous de ${pharmacyName}. Consultez les étapes du trajet ; aucun guidage en temps réel n’est fourni.`}
         </p>
       </div>
     </div>
@@ -65,12 +77,20 @@ export function ArrivalControls({
   radiusMeters,
   onStart,
   onQuit,
+  onDeclare,
+  canDeclare = false,
+  starting = false,
+  recording = false,
   routeWasRequested = false,
 }: {
   state: ArrivalState;
   radiusMeters: number;
   onStart: () => void;
   onQuit: () => void;
+  onDeclare?: () => void;
+  canDeclare?: boolean;
+  starting?: boolean;
+  recording?: boolean;
   routeWasRequested?: boolean;
 }) {
   const tracking = state.status === "requesting" || state.status === "active";
@@ -106,6 +126,18 @@ export function ArrivalControls({
           fois. La position n’est plus suivie.
         </p>
       ) : null}
+      {state.status === "already-nearby" ? (
+        <p className="arrival-controls__feedback" role="status">
+          <Check aria-hidden="true" /> Déjà à proximité au premier point GPS
+          fiable. Aucun trajet parcouru n’est déduit.
+        </p>
+      ) : null}
+      {state.status === "manual-declared" ? (
+        <p className="arrival-controls__feedback" role="status">
+          <Check aria-hidden="true" /> Arrivée déclarée par vous, sans
+          confirmation GPS.
+        </p>
+      ) : null}
       {state.status === "cancelled" ? (
         <p className="arrival-controls__feedback" role="status">
           <X aria-hidden="true" /> Suivi arrêté. Aucune position n’est suivie.
@@ -130,14 +162,28 @@ export function ArrivalControls({
       </p>
       <Button
         className="arrival-controls__action"
-        onClick={tracking || state.status === "arrived" ? onQuit : onStart}
+        disabled={starting || recording}
+        onClick={
+          tracking ||
+          state.status === "arrived" ||
+          state.status === "already-nearby" ||
+          state.status === "manual-declared"
+            ? onQuit
+            : onStart
+        }
         type="button"
       >
-        {tracking ? (
+        {recording ? (
+          <>Enregistrement du résultat…</>
+        ) : starting ? (
+          <>Démarrage du suivi…</>
+        ) : tracking ? (
           <>
             <X aria-hidden="true" /> Quitter le suivi
           </>
-        ) : state.status === "arrived" ? (
+        ) : state.status === "arrived" ||
+          state.status === "already-nearby" ||
+          state.status === "manual-declared" ? (
           <>
             <Check aria-hidden="true" /> Terminer le suivi
           </>
@@ -153,6 +199,16 @@ export function ArrivalControls({
           </>
         )}
       </Button>
+      {canDeclare && onDeclare ? (
+        <Button
+          className="arrival-controls__declare"
+          onClick={onDeclare}
+          type="button"
+          variant="outline"
+        >
+          Je suis arrivé
+        </Button>
+      ) : null}
     </section>
   );
 }

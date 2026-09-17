@@ -5,6 +5,8 @@ import {
   adminAnalyticsOverviewResponseSchema,
   adminAnalyticsQualityQuerySchema,
   adminAnalyticsQualityResponseSchema,
+  adminRouteOutcomesQuerySchema,
+  adminRouteOutcomesResponseSchema,
 } from "@wanzila/contracts";
 import type { FastifyInstance } from "fastify";
 import type { ApiPrismaClient } from "../../infrastructure/prisma.js";
@@ -13,6 +15,7 @@ import { sendBadRequest } from "../shared/http-errors.js";
 import { loadAdminAnalyticsOverview } from "./overview.js";
 import { loadAdminAnalyticsQuality } from "./quality.js";
 import { loadAdminAnalyticsActivity } from "./activity.js";
+import { loadAdminRouteOutcomes } from "./route-outcomes.js";
 
 export function registerAdminAnalyticsRoutes(
   app: FastifyInstance,
@@ -71,6 +74,20 @@ export function registerAdminAnalyticsRoutes(
         query: query.data,
       });
       return adminAnalyticsActivityResponseSchema.parse(activity);
+    },
+  );
+  app.get(
+    "/admin/analytics/route-outcomes",
+    { preHandler: requireAdministrator },
+    async (request, reply) => {
+      const query = adminRouteOutcomesQuerySchema.safeParse(request.query);
+      if (!query.success) return sendBadRequest(reply);
+      const result = await loadAdminRouteOutcomes({
+        prisma: options.prisma,
+        asOf: options.now(),
+        window: query.data.window,
+      });
+      return adminRouteOutcomesResponseSchema.parse(result);
     },
   );
 }

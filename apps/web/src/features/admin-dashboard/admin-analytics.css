@@ -274,6 +274,37 @@
   padding: 1rem;
 }
 
+.analytics-route-outcomes dl {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.analytics-route-outcomes dl > div {
+  background: var(--primary-soft);
+  border-radius: 0.65rem;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.analytics-route-outcomes dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.analytics-route-outcomes dd {
+  font-size: 1.3rem;
+  font-weight: 750;
+  margin: 0.25rem 0 0;
+}
+
+@media (max-width: 40rem) {
+  .analytics-route-outcomes dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .analytics-panel__heading {
   align-items: flex-start;
   display: flex;
