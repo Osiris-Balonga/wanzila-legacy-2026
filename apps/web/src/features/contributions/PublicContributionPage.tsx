@@ -5,7 +5,7 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,10 +49,17 @@ export function PublicContributionPage() {
   const [submissionId, setSubmissionId] = useState(newSubmissionId);
   const [submission, setSubmission] = useState<SubmissionState>("idle");
   const [submitError, setSubmitError] = useState("");
+  const selectedPoint = useRef(false);
 
   const onCenterChange = useCallback((value: ProposedCoordinates) => {
     setMapCenter(value);
     setCoordinates(null);
+    if (selectedPoint.current) {
+      selectedPoint.current = false;
+      setLocationMessage(
+        "Carte déplacée. Choisissez le nouveau point avant de continuer.",
+      );
+    }
   }, []);
 
   function useMyPosition() {
@@ -94,6 +101,7 @@ export function PublicContributionPage() {
       return;
     }
     setCoordinates(mapCenter);
+    selectedPoint.current = true;
     setManualLocation(false);
     setSubmissionId(newSubmissionId());
     setLocationMessage("Repère sélectionné. Vous pouvez continuer.");
@@ -226,6 +234,7 @@ export function PublicContributionPage() {
                 className="contribution-manual"
                 onClick={() => {
                   setCoordinates(null);
+                  selectedPoint.current = false;
                   setManualLocation(true);
                   setSubmissionId(newSubmissionId());
                   setLocationMessage(
