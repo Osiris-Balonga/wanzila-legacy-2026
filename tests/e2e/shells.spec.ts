@@ -40,14 +40,17 @@ for (const viewport of viewports) {
         .click();
     }
 
-    await expect(
-      page.getByRole("navigation", { name: "Navigation administration" }),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole("navigation", { name: "Navigation administration" })
-        .getByRole("link", { name: "Signalements" }),
-    ).toHaveCount(0);
+    const navigation = page.getByRole("navigation", {
+      name: "Navigation administration",
+    });
+    await expect(navigation).toBeVisible();
+    await expect(navigation.getByRole("link")).toHaveText([
+      "Dashboard",
+      "Pharmacies",
+      "Gardes",
+      "Contributions",
+      "Sources & qualité",
+    ]);
   });
 }
 
