@@ -26,9 +26,11 @@ CREATE TABLE `DutyRevision` (
   INDEX `DutyRevision_dutyPeriodId_submittedAt_id_idx` (`dutyPeriodId`, `submittedAt`, `id`),
   CONSTRAINT `DutyRevision_before_interval` CHECK (`beforeEndsAt` > `beforeStartsAt`),
   CONSTRAINT `DutyRevision_proposed_interval` CHECK (`proposedEndsAt` > `proposedStartsAt`),
+  -- MariaDB cannot reference the reviewedById FK column in a CHECK; the review
+  -- route writes reviewer and timestamp atomically and the FK validates the ID.
   CONSTRAINT `DutyRevision_open_key` CHECK (
-    (`status` = 'PENDING' AND `openRevisionKey` = '1' AND `reviewedAt` IS NULL AND `reviewedById` IS NULL)
-    OR (`status` <> 'PENDING' AND `openRevisionKey` IS NULL AND `reviewedAt` IS NOT NULL AND `reviewedById` IS NOT NULL)
+    (`status` = 'PENDING' AND `openRevisionKey` = '1' AND `reviewedAt` IS NULL)
+    OR (`status` <> 'PENDING' AND `openRevisionKey` IS NULL AND `reviewedAt` IS NOT NULL)
   ),
   PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
