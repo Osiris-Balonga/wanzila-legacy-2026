@@ -31,7 +31,7 @@ export function ArrivalMapBanner({
         )}
       </span>
       <div>
-        <small>Suivi de proximité · démonstration</small>
+        <small>Suivi de proximité</small>
         <h2>
           {state.status === "arrived"
             ? "Arrivée à proximité estimée"
@@ -42,7 +42,7 @@ export function ArrivalMapBanner({
         <p>
           {state.status === "arrived"
             ? `Position probablement à ${radiusMeters} m ou moins de ${pharmacyName}, à vol d’oiseau, selon la précision estimée du GPS.`
-            : `Rapprochez-vous de ${pharmacyName}. Aucun guidage virage par virage n’est calculé.`}
+            : `Rapprochez-vous de ${pharmacyName}. Consultez les étapes du trajet ; aucun guidage en temps réel n’est fourni.`}
         </p>
       </div>
     </div>
@@ -57,7 +57,7 @@ const failures = {
   unavailable:
     "Position indisponible. Le suivi reste arrêté ; vous pouvez ouvrir Google Maps.",
   unsupported:
-    "Ce navigateur ne prend pas en charge la géolocalisation. Ouvrez Google Maps pour un vrai itinéraire.",
+    "Ce navigateur ne prend pas en charge la géolocalisation. Les étapes du trajet restent consultables.",
 } as const;
 
 export function ArrivalControls({
@@ -65,11 +65,13 @@ export function ArrivalControls({
   radiusMeters,
   onStart,
   onQuit,
+  routeWasRequested = false,
 }: {
   state: ArrivalState;
   radiusMeters: number;
   onStart: () => void;
   onQuit: () => void;
+  routeWasRequested?: boolean;
 }) {
   const tracking = state.status === "requesting" || state.status === "active";
   const failure =
@@ -79,10 +81,7 @@ export function ArrivalControls({
     state.status === "unsupported";
 
   return (
-    <section
-      aria-label="Suivi d’arrivée de démonstration"
-      className="arrival-controls"
-    >
+    <section aria-label="Suivi d’arrivée" className="arrival-controls">
       {state.status === "active" ? (
         <div className="arrival-controls__distance" role="status">
           <CrosshairIcon aria-hidden="true" weight="fill" />
@@ -121,9 +120,13 @@ export function ArrivalControls({
         </p>
       ) : null}
       <p className="arrival-controls__privacy">
-        Votre position est utilisée uniquement pendant ce suivi. Aucune
-        coordonnée n’est enregistrée ni envoyée à Wanzila. Détection de
-        proximité uniquement : pas de navigation routière en temps réel.
+        Votre position GPS est utilisée uniquement pendant ce suivi, sur cet
+        appareil, pour estimer votre proximité. Aucune coordonnée de suivi n’est
+        enregistrée ni envoyée à Wanzila.
+        {routeWasRequested
+          ? " Le point de départ a été envoyé séparément, avec votre accord, pour calculer l’itinéraire."
+          : ""}{" "}
+        Le suivi s’arrête quand vous quittez la page.
       </p>
       <Button
         className="arrival-controls__action"

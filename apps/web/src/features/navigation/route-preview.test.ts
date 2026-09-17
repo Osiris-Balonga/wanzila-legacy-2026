@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildExternalDirectionsUrl,
   classifyGeolocationError,
-  getDemonstrationRoute,
+  describeRouteStep,
+  formatRouteDistance,
+  formatRouteDuration,
   hasUsableCoordinates,
 } from "./route-preview";
 
@@ -37,35 +39,23 @@ describe("route preview boundaries", () => {
       "travelmode=walking",
     );
     expect(
-      buildExternalDirectionsUrl(jagger.coordinates, "moto"),
-    ).not.toContain("travelmode=");
-    expect(
       buildExternalDirectionsUrl({ latitude: 120, longitude: 15 }, "car"),
     ).toBeNull();
   });
 
-  it("supplies a typed deterministic car fixture only for the exact Jagger destination", () => {
-    const route = getDemonstrationRoute(jagger, "car");
-    expect(route?.feature.type).toBe("Feature");
-    expect(route?.feature.geometry.type).toBe("LineString");
-    expect(route?.feature.geometry.coordinates.length).toBeGreaterThan(2);
-    expect(route?.feature.geometry.coordinates.at(-1)).toEqual([
-      15.2429, -4.2636,
-    ]);
-    expect(route?.distanceKm).toBe(2.4);
-    expect(route?.durationMinutes).toBe(7);
-    expect(route?.demonstration).toBe(true);
-    expect(getDemonstrationRoute(jagger, "walk")).toBeNull();
-    expect(getDemonstrationRoute(jagger, "moto")).toBeNull();
+  it("formats only measured route values and describes steps without invented street names", () => {
+    expect(formatRouteDistance(830)).toBe("830 m");
+    expect(formatRouteDistance(3_422.8)).toMatch(/3,4 km/);
+    expect(formatRouteDuration(281)).toBe("5 min");
+    expect(formatRouteDuration(3_601)).toBe("1 h 1 min");
     expect(
-      getDemonstrationRoute(
-        { ...jagger, coordinates: { latitude: -4.264, longitude: 15.2429 } },
-        "car",
-      ),
-    ).toBeNull();
-    expect(
-      getDemonstrationRoute({ ...jagger, name: "Autre pharmacie" }, "car"),
-    ).toBeNull();
+      describeRouteStep({
+        distanceMeters: 120,
+        durationSeconds: 30,
+        name: "",
+        maneuver: { type: "turn", modifier: "left", location: [15.2, -4.2] },
+      }),
+    ).toBe("Tourner à gauche");
   });
 
   it("names denial, unavailable and timeout separately", () => {

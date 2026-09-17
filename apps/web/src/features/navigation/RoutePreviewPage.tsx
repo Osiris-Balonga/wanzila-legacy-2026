@@ -2,7 +2,6 @@ import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { CarIcon } from "@phosphor-icons/react/Car";
 import { CrosshairIcon } from "@phosphor-icons/react/Crosshair";
 import { MapPinIcon } from "@phosphor-icons/react/MapPin";
-import { MotorcycleIcon } from "@phosphor-icons/react/Motorcycle";
 import { PersonSimpleWalkIcon } from "@phosphor-icons/react/PersonSimpleWalk";
 import {
   ArrowLeft,
@@ -27,11 +26,15 @@ import {
 import { PharmacyDetailMap } from "../pharmacy-detail/PharmacyDetailMap";
 import { ArrivalControls, ArrivalMapBanner } from "./ArrivalControls";
 import { createArrivalTracker, type ArrivalState } from "./arrival-tracker";
+import { createRouteClient, type RouteState } from "./route-client";
 import {
   buildExternalDirectionsUrl,
   classifyGeolocationError,
-  getDemonstrationRoute,
+  describeRouteStep,
+  formatRouteDistance,
+  formatRouteDuration,
   hasUsableCoordinates,
+  routeFeature,
   type Coordinates,
   type LocationFailure,
   type TravelMode,
@@ -41,7 +44,11 @@ import "./route-preview.css";
 type LocationState =
   | { status: "idle" }
   | { status: "requesting" }
-  | { status: "obtained"; position: Coordinates }
+  | {
+      status: "obtained";
+      position: Coordinates;
+      accuracyMeters: number | null;
+    }
   | { status: LocationFailure | "unsupported" };
 
 const modeOptions: {
@@ -50,7 +57,6 @@ const modeOptions: {
   icon: typeof CarIcon;
 }[] = [
   { value: "car", label: "Voiture", icon: CarIcon },
-  { value: "moto", label: "Moto", icon: MotorcycleIcon },
   { value: "walk", label: "À pied", icon: PersonSimpleWalkIcon },
 ];
 
@@ -61,6 +67,14 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
   );
   const [mode, setMode] = useState<TravelMode>("car");
   const [location, setLocation] = useState<LocationState>({ status: "idle" });
+  const [routeConsent, setRouteConsent] = useState(false);
+  const [routeState, setRouteState] = useState<RouteState>({ status: "idle" });
+  const [routeRetry, setRouteRetry] = useState(0);
+  const routeClient = useMemo(
+    () =>
+      createRouteClient({ fetch: (input, init) => window.fetch(input, init) }),
+    [],
+  );
   const [arrivalState, setArrivalState] = useState<ArrivalState>({
     status: "idle",
   });
@@ -81,7 +95,19 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
     arrivalState.status === "requesting" ||
     arrivalState.status === "active" ||
     arrivalState.status === "arrived";
-  const route = getDemonstrationRoute(pharmacy, mode);
+  const route = routeState.status === "success" ? routeState.route : null;
+  const originAccuracyWarning =
+    location.status !== "obtained"
+      ? null
+      : location.accuracyMeters === null
+        ? "La précision de votre position GPS est inconnue. Le départ et la distance du trajet peuvent être inexacts."
+        : location.accuracyMeters > 100
+          ? `Votre position GPS est imprécise (± ${formatRouteDistance(location.accuracyMeters)}). Le départ et la distance du trajet peuvent être inexacts.`
+          : null;
+  const routeLine = useMemo(
+    () => (route ? routeFeature(route) : null),
+    [route],
+  );
   const directionsHref = buildExternalDirectionsUrl(destination, mode);
   const address = Array.from(
     new Set(
@@ -96,9 +122,40 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
   useEffect(
     () => () => {
       requestVersion.current += 1;
+      routeClient.cancel();
     },
-    [],
+    [routeClient],
   );
+
+  useEffect(() => {
+    if (!routeConsent || location.status !== "obtained" || !destination) return;
+    const origin = location.position;
+    let current = true;
+    setRouteState({ status: "loading" });
+    void routeClient
+      .load({
+        pharmacyId: pharmacy.id,
+        origin,
+        mode,
+        locationConsent: true,
+      })
+      .then((next) => {
+        if (current) setRouteState(next);
+      });
+    return () => {
+      current = false;
+      routeClient.cancel();
+    };
+  }, [
+    routeClient,
+    routeConsent,
+    location,
+    pharmacy.id,
+    destinationLatitude,
+    destinationLongitude,
+    mode,
+    routeRetry,
+  ]);
 
   useEffect(() => {
     if (destinationLatitude === undefined || destinationLongitude === undefined)
@@ -147,7 +204,6 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
 
   function startArrival() {
     if (!destination || !arrivalTracker.current) return;
-    clearLocation();
     if (!arrivalTracker.current.start()) return;
     const path = `/pharmacies/${pharmacy.id}/navigation`;
     if (window.location.pathname !== path)
@@ -167,6 +223,9 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
 
   function requestLocation() {
     const version = ++requestVersion.current;
+    routeClient.cancel();
+    setRouteConsent(false);
+    setRouteState({ status: "idle" });
     if (!navigator.geolocation) {
       setLocation({ status: "unsupported" });
       return;
@@ -182,7 +241,15 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           };
           setLocation(
             hasUsableCoordinates(position)
-              ? { status: "obtained", position }
+              ? {
+                  status: "obtained",
+                  position,
+                  accuracyMeters:
+                    Number.isFinite(result.coords.accuracy) &&
+                    result.coords.accuracy >= 0
+                      ? result.coords.accuracy
+                      : null,
+                }
               : { status: "unavailable" },
           );
         },
@@ -202,6 +269,9 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
 
   function clearLocation() {
     requestVersion.current += 1;
+    routeClient.cancel();
+    setRouteConsent(false);
+    setRouteState({ status: "idle" });
     setLocation({ status: "idle" });
   }
 
@@ -253,11 +323,13 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
             interactive
             name={pharmacy.name}
             origin={
-              arrivalPosition ??
-              (location.status === "obtained" ? location.position : null)
+              showingNavigation
+                ? arrivalPosition
+                : location.status === "obtained"
+                  ? location.position
+                  : null
             }
-            route={route?.feature ?? null}
-            demonstrationVisible={!showingNavigation}
+            route={routeLine}
             focusDestination={arrivalState.status === "arrived"}
           />
         ) : (
@@ -270,11 +342,18 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           pharmacyName={pharmacy.name}
           radiusMeters={DEFAULT_ARRIVAL_RADIUS_METERS}
         />
-        {route && !showingNavigation ? (
+        {route ? (
           <div className="route-preview-map-badge" role="note">
-            <CarIcon aria-hidden="true" weight="fill" />
-            <span>7 min · 2,4 km</span>
-            <small>Démonstration</small>
+            {mode === "car" ? (
+              <CarIcon aria-hidden="true" weight="fill" />
+            ) : (
+              <PersonSimpleWalkIcon aria-hidden="true" weight="fill" />
+            )}
+            <span>
+              {formatRouteDuration(route.durationSeconds)} ·{" "}
+              {formatRouteDistance(route.distanceMeters)}
+            </span>
+            <small>Itinéraire calculé</small>
           </div>
         ) : null}
         {!showingNavigation ? (
@@ -342,21 +421,44 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           </div>
         ) : null}
 
-        {!showingNavigation && route ? (
+        {route ? (
           <div className="route-preview-summary">
             <div>
-              <strong>{route.durationMinutes} min</strong>{" "}
-              <span>({route.distanceKm.toLocaleString("fr-CG")} km)</span>
+              <strong>{formatRouteDuration(route.durationSeconds)}</strong>{" "}
+              <span>({formatRouteDistance(route.distanceMeters)})</span>
             </div>
-            <p>Tracé de démonstration · ni trafic ni trajet calculé.</p>
+            <p>Trajet estimé sans trafic en temps réel.</p>
+            {originAccuracyWarning ? (
+              <p className="route-preview-accuracy-warning" role="note">
+                {originAccuracyWarning}
+              </p>
+            ) : null}
           </div>
         ) : !showingNavigation ? (
-          <Alert className="route-preview-no-route">
-            <AlertDescription>
-              Aucun trajet calculé pour ce mode ou cette destination. Google
-              Maps peut proposer un itinéraire réel.
-            </AlertDescription>
-          </Alert>
+          <div className="route-preview-no-route" role="status">
+            <p>
+              {routeState.status === "loading"
+                ? "Calcul de l’itinéraire en cours…"
+                : routeState.status === "no-route"
+                  ? "Aucun trajet routier trouvé pour ce mode et cette destination."
+                  : routeState.status === "rate-limited"
+                    ? "Service de trajet occupé. Réessayez dans quelques instants."
+                    : routeState.status === "unavailable"
+                      ? "Calcul de l’itinéraire indisponible. Réessayez ou ouvrez la destination dans Google Maps."
+                      : "Localisez-vous puis autorisez le calcul pour afficher un trajet réel."}
+            </p>
+            {routeConsent &&
+            routeState.status !== "loading" &&
+            routeState.status !== "idle" ? (
+              <Button
+                onClick={() => setRouteRetry((value) => value + 1)}
+                type="button"
+                variant="outline"
+              >
+                Réessayer le calcul
+              </Button>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="route-preview-stops">
@@ -367,15 +469,11 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
                 className="route-preview-stops__origin"
               />
               <p>
-                <strong>
-                  {route
-                    ? "Départ du tracé : point fictif"
-                    : "Départ : votre position, si autorisée"}
-                </strong>
+                <strong>Départ : votre position, si autorisée</strong>
                 <small>
-                  {route
-                    ? "Le tracé de démonstration n’utilise pas votre position."
-                    : "Aucune position transmise à Wanzila."}
+                  {routeConsent
+                    ? "Position envoyée pour calculer ce trajet après votre accord."
+                    : "Aucune position transmise pour le calcul du trajet."}
                 </small>
               </p>
             </div>
@@ -389,12 +487,91 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           </div>
         </div>
 
+        {!showingNavigation &&
+        location.status === "obtained" &&
+        !routeConsent ? (
+          <div className="route-preview-consent">
+            <p>
+              Pour calculer le trajet, votre point de départ précis sera envoyé
+              à Wanzila puis au service FOSSGIS / OpenStreetMap. Ce service
+              journalise les requêtes. Wanzila ne conserve pas votre position.
+            </p>
+            {originAccuracyWarning ? (
+              <p className="route-preview-accuracy-warning" role="note">
+                {originAccuracyWarning} Vous pouvez réessayer la localisation
+                avant de calculer.
+              </p>
+            ) : null}
+            <Button onClick={() => setRouteConsent(true)} type="button">
+              Calculer l’itinéraire avec ma position
+            </Button>
+          </div>
+        ) : null}
+
+        {route ? (
+          <section
+            aria-label="Étapes de l’itinéraire"
+            className="route-preview-steps"
+          >
+            <h2>Étapes du trajet</h2>
+            <p>
+              À consulter avant de partir · aucun guidage vocal ni recalcul
+              automatique.
+            </p>
+            {route.snapDistanceMeters.destination >
+            DEFAULT_ARRIVAL_RADIUS_METERS ? (
+              <p className="route-preview-snap-warning" role="note">
+                Le trajet routier se termine à{" "}
+                {formatRouteDistance(route.snapDistanceMeters.destination)} du
+                point de la pharmacie. Vérifiez le dernier accès sur la carte.
+              </p>
+            ) : null}
+            {route.snapDistanceMeters.origin > 100 ? (
+              <p className="route-preview-snap-warning" role="note">
+                Le réseau routier commence à{" "}
+                {formatRouteDistance(route.snapDistanceMeters.origin)} de votre
+                point GPS. Vérifiez le point de départ.
+              </p>
+            ) : null}
+            <ol>
+              {route.steps.map((step, index) => (
+                <li key={index}>
+                  <span>
+                    {describeRouteStep(step)}
+                    {step.name ? ` · ${step.name}` : ""}
+                  </span>
+                  <small>{formatRouteDistance(step.distanceMeters)}</small>
+                </li>
+              ))}
+            </ol>
+            <p className="route-preview-attribution">
+              Trajet :{" "}
+              <a
+                href={route.provider.attributionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {route.provider.name}
+              </a>
+              {" · "}
+              <a
+                href={route.provider.fixMapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Corriger la carte
+              </a>
+            </p>
+          </section>
+        ) : null}
+
         {destination ? (
           <ArrivalControls
             state={arrivalState}
             radiusMeters={DEFAULT_ARRIVAL_RADIUS_METERS}
             onStart={startArrival}
             onQuit={quitArrival}
+            routeWasRequested={routeConsent}
           />
         ) : null}
 
@@ -466,14 +643,14 @@ function RoutePreviewContent({ pharmacy }: { pharmacy: PublicPharmacy }) {
           {copyFeedback}
         </p>
         {directionsHref ? (
-          <Button asChild className="route-preview-start">
+          <Button asChild className="route-preview-external" variant="outline">
             <a
               aria-label="Ouvrir l’itinéraire dans Google Maps"
               href={directionsHref}
               rel="noopener noreferrer"
               target="_blank"
             >
-              <Navigation aria-hidden="true" /> Démarrer dans Google Maps
+              <Navigation aria-hidden="true" /> Ouvrir aussi dans Google Maps
             </a>
           </Button>
         ) : (
