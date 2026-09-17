@@ -8,6 +8,11 @@ export interface AdminAnalyticsCalendarWindow {
   dates: string[];
 }
 
+export interface AdminAnalyticsComparisonWindow extends AdminAnalyticsCalendarWindow {
+  previousFrom: Date;
+  previousTo: Date;
+}
+
 const formatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: PRODUCT_TIME_ZONE,
   year: "numeric",
@@ -69,4 +74,18 @@ export function createAdminAnalyticsWindow(
     return day.toISOString().slice(0, 10);
   });
   return { from: localMidnightUtc(first), to: new Date(at), dates };
+}
+
+/** The preceding interval is adjacent and equal in elapsed time, even when today is partial. */
+export function createAdminAnalyticsComparisonWindow(
+  at: Date,
+  selection: AdminAnalyticsWindowSelection,
+): AdminAnalyticsComparisonWindow {
+  const current = createAdminAnalyticsWindow(at, selection);
+  const durationMs = current.to.getTime() - current.from.getTime();
+  return {
+    ...current,
+    previousFrom: new Date(current.from.getTime() - durationMs),
+    previousTo: new Date(current.from),
+  };
 }
