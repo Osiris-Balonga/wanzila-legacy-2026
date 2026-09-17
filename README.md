@@ -1,53 +1,26 @@
 # Wanzila
 
-Wanzila is the repository for Pharma Garde, a mobile-first web application that helps people find active on-duty pharmacies in Brazzaville and gives the product team a back office for schedules, data quality, contributions, reports, and analytics.
+MVP de recherche de pharmacies à Brazzaville, repris du frontend Iroy `dev` (commit `24ee093`). L'interface conserve sa structure et ses interactions Leaflet. Le service de données est JSON Server.
 
-The repository is currently in its foundation phase. Product workflows and visual references are versioned under `docs/`; implementation work is tracked in GitHub Issues and must follow the branch policy described in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Architecture
-
-- `apps/web`: responsive public experience and administration interface
-- `apps/api`: Fastify HTTP API and Prisma migrations
-- `packages/domain`: framework-independent business rules
-- `packages/contracts`: shared request and response schemas
-- `docs`: product, architecture, design, and operational references
-- `tests/e2e`: critical browser journeys
-
-The production application is deployed as one Node.js service on Render. The API serves the built web assets and will connect to a managed MySQL database through Prisma.
-
-## Requirements
-
-- Node.js 24.18
-- pnpm 11.19 or newer within major 11
-- MySQL 8 or a compatible MariaDB release
-
-## Local development
+## Démarrage local
 
 ```bash
-pnpm install
-cp apps/api/.env.example apps/api/.env
-pnpm db:generate
-pnpm dev
+npm ci
+npm run dev
 ```
 
-The web application runs on `http://localhost:5173`; the API runs on `http://localhost:3000`.
+Next.js écoute sur le port **3100** et JSON Server sur **3101** en boucle locale. Ouvrez `http://localhost:3100` sur l'ordinateur. Le navigateur appelle toujours `/data/pharmacies` sur l'origine du site ; Next relaie les lectures vers JSON Server. Pour un service JSON Server distant, définir `JSON_SERVER_URL` côté serveur Next.
 
-## Validation
+Sur un smartphone, ouvrez l'adresse réseau du serveur Next, avec **HTTPS** pour que la géolocalisation soit autorisée. Le téléphone ne doit pas accéder directement à `localhost:3101`. Le serveur JSON Server doit rester privé ; seules les requêtes GET passent par `/data`. Aucune interface d'administration modifiable n'est exposée.
 
-```bash
-pnpm validate
-pnpm test:e2e
-```
+## Données
 
-CI additionally applies all Prisma migrations against a clean MariaDB database before accepting a pull request.
+`db.json` contient 11 entrées `amenity=pharmacy` de Brazzaville issues d'OpenStreetMap, récupérées via la [couche OSM_AF_Medical ArcGIS](https://services-eu1.arcgis.com/zci5bUiJ8olAal7N/arcgis/rest/services/OSM_AF_Medical/FeatureServer/0) le 17 septembre 2026. Leur commune a été contrôlée avec le [géocodage inverse Nominatim](https://nominatim.org/release-docs/latest/api/Reverse/) ; une entrée située à Kinshasa a été écartée. Chaque fiche renvoie à son objet OSM. Les noms et coordonnées sont traçables à cette source collaborative ; leur exactitude sur place n'a pas été contrôlée. Numéros, photos, horaires et gardes ne sont pas ajoutés sans vérification.
 
-## Product references
+`category=night_pharmacy` signifie seulement que le nom OSM contient « de nuit ». `duty_status` et `duty_periods` sont séparés de la catégorie. Une garde confirmée exige une période datée et une source ; aucune n'est fournie dans la démo.
 
-- [Product workflows](docs/product/README.md)
-- [Design inventory](docs/design/README.md)
-- [Architecture decisions](docs/architecture/README.md)
-- [Deployment](docs/operations/deployment.md)
+L'itinéraire intégré utilise le profil voiture du service de démonstration OSRM. Si OSRM ou la géolocalisation échoue, l'application affiche une erreur sans tracer de ligne droite ni inventer de durée.
 
-## Status
+## Suite
 
-This is a public demonstration project. It is not intended to provide medical advice or guarantee that a pharmacy is open. Source freshness and verification must always be visible to users.
+L'admin Iroy dépendait de Supabase pour la lecture, l'écriture, l'authentification et les statistiques. Ces écrans sont retirés du MVP pour éviter d'annoncer un CRUD non testé ou d'exposer des modifications sans protection. Une reprise de l'admin nécessitera une protection réelle des écritures JSON Server et des essais manuels de chaque opération.

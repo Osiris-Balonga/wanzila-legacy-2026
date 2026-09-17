@@ -1,38 +1,40 @@
 {
   "name": "wanzila",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "license": "UNLICENSED",
-  "packageManager": "pnpm@11.19.0",
-  "engines": {
-    "node": ">=24.18 <25",
-    "pnpm": ">=11.19 <12"
-  },
   "scripts": {
-    "dev": "pnpm --parallel --filter @wanzila/api --filter @wanzila/web dev",
-    "build": "pnpm -r build",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "lint": "eslint apps packages tests playwright.config.ts vitest.config.ts",
-    "typecheck": "pnpm -r typecheck",
-    "test": "vitest run",
-    "test:e2e": "playwright test",
-    "db:generate": "pnpm --filter @wanzila/api db:generate",
-    "db:migrate": "pnpm --filter @wanzila/api db:migrate",
-    "db:seed": "pnpm --filter @wanzila/api db:seed",
-    "db:reset": "pnpm --filter @wanzila/api db:reset",
-    "validate": "pnpm db:generate && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "dev": "concurrently -k \"next dev -p 3100 -H 0.0.0.0\" \"json-server db.json --port 3101 --host 127.0.0.1\"",
+    "build": "next build",
+    "start": "next start -p 3100 -H 0.0.0.0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.0.2",
+    "@types/leaflet": "^1.9.20",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.408.0",
+    "next": "15.5.25",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
+    "tailwind-merge": "^2.4.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.13.0",
-    "@eslint/js": "9.39.5",
-    "@playwright/test": "1.63.0",
-    "@types/node": "24.13.3",
-    "eslint": "9.39.5",
-    "prettier": "3.9.6",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.70.0",
-    "vitest": "5.0.0"
+    "@types/node": "^20.14.15",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.1",
+    "json-server": "^1.0.0-beta.3",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.7",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.5.4"
+  },
+  "overrides": {
+    "postcss": "^8.5.28",
+    "sharp": "^0.35.4"
   }
 }
