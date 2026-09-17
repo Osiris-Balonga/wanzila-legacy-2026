@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
 function capturePath(name: string): string {
@@ -265,6 +266,107 @@ test("provider failure leaves a useful map-to-list path", async ({ page }) => {
   await expect(
     page.getByRole("list", { name: "Résultats de pharmacies de garde" }),
   ).toBeVisible();
+});
+
+for (const freshness of ["STALE", "UNKNOWN"] as const) {
+  test(`selected map pharmacy qualifies ${freshness} duty information`, async ({
+    page,
+  }) => {
+    const uncertain = pharmacy(
+      "00000000-0000-4000-8000-000000000101",
+      "Pharmacie Jagger",
+      -4.273,
+      15.245,
+    );
+    uncertain.currentDuty.sourceFreshness = freshness;
+    await page.route("**/api/v1/pharmacies?**", (route) =>
+      route.fulfill({
+        json: {
+          data: [uncertain],
+          pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Pharmacie Jagger sur la carte" })
+      .click();
+
+    const selection = page.getByRole("region", {
+      name: "Pharmacie sélectionnée",
+    });
+    await expect(selection.getByText("Garde à confirmer")).toBeVisible();
+    await expect(selection.getByText("De garde maintenant")).toHaveCount(0);
+    await expect(selection.getByText(/confirmez.*téléphone/i)).toBeVisible();
+
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const dimensions = await page.locator("html").evaluate((element) => ({
+        client: element.clientWidth,
+        scroll: element.scrollWidth,
+      }));
+      expect(dimensions.scroll, `horizontal overflow at ${width}px`).toBe(
+        dimensions.client,
+      );
+      const card = await selection.boundingBox();
+      const navigation = await page
+        .getByRole("navigation", { name: "Navigation de la carte" })
+        .boundingBox();
+      expect(card && navigation && card.y + card.height <= navigation.y).toBe(
+        true,
+      );
+      if (width === 390 && freshness === "UNKNOWN") {
+        const path = test
+          .info()
+          .outputPath("visual-evidence", "discovery-uncertain-390.png");
+        await mkdir(dirname(path), { recursive: true });
+        await page.screenshot({ path });
+        await test.info().attach("discovery-uncertain-390", {
+          path,
+          contentType: "image/png",
+        });
+      }
+    }
+  });
+}
+
+test("selected uncertain pharmacy without phone does not suggest calling", async ({
+  page,
+}) => {
+  const uncertain = pharmacy(
+    "00000000-0000-4000-8000-000000000101",
+    "Pharmacie Jagger",
+    -4.273,
+    15.245,
+  );
+  await page.route("**/api/v1/pharmacies?**", (route) =>
+    route.fulfill({
+      json: {
+        data: [
+          {
+            ...uncertain,
+            phone: undefined,
+            currentDuty: {
+              ...uncertain.currentDuty,
+              sourceFreshness: "UNKNOWN",
+            },
+          },
+        ],
+        pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+      },
+    }),
+  );
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Pharmacie Jagger sur la carte" })
+    .click();
+
+  const selection = page.getByRole("region", {
+    name: "Pharmacie sélectionnée",
+  });
+  await expect(selection.getByText("Garde à confirmer")).toBeVisible();
+  await expect(selection.getByText(/vérifiez la disponibilité/i)).toBeVisible();
+  await expect(selection.getByText(/confirmez par téléphone/i)).toHaveCount(0);
 });
 
 test("invalid coordinates never create a marker but remain in the list", async ({

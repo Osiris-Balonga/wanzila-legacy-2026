@@ -334,6 +334,10 @@
   height: 0.85rem;
   width: 0.85rem;
 }
+.discovery-map-selection__duty--uncertain,
+.discovery-map-selection__uncertain {
+  color: #8b5300;
+}
 .discovery-map-selection p {
   align-items: center;
   display: flex;

@@ -70,7 +70,7 @@ describe("issue #6 discovery page accessibility and content", () => {
     expect(markup).toContain("Rechercher une pharmacie, un quartier");
     expect(markup).toContain('for="discovery-district"');
     expect(markup).toContain('for="discovery-arrondissement"');
-    expect(markup).toContain("Ouvertes maintenant");
+    expect(markup).toContain("Gardes indiquées");
     expect(markup).not.toContain("<canvas");
     expect(markup).not.toContain("Géolocaliser");
     expect(markup).not.toContain("Itinéraire");
@@ -125,6 +125,19 @@ describe("issue #6 discovery page accessibility and content", () => {
 
     expect(markup).toContain("Informations à vérifier");
     expect(markup).toContain("Données de source inconnue");
-    expect(markup).not.toContain("Disponibilité garantie");
+    expect(markup).toContain("Garde indiquée jusqu’au");
+    expect(markup).not.toContain("Ouverte jusqu’au");
+    expect(markup).not.toContain("Ouvertes maintenant");
+  });
+
+  it("qualifies a stale source on the pharmacy row", async () => {
+    const markup = await renderPage({
+      status: "uncertain-data",
+      response: response("STALE"),
+    });
+
+    expect(markup).toContain("Garde indiquée jusqu’au");
+    expect(markup).toContain("Données de source anciennes");
+    expect(markup).not.toContain("Ouverte jusqu’au");
   });
 });
